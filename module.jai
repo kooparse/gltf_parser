@@ -20,7 +20,16 @@ gltf_free :: (gltf_data: *GLTF_Data) {
   // fini(*gltf_data._pool);
 }
 
-parse_from_string :: (gltf_json_string: string) -> GLTF_Data {
+gltf_parse_file :: (gltf_filepath: string) -> GLTF_Data {
+  #import "File";
+
+  gltf_string := read_entire_file(gltf_filepath);
+  defer free(gltf_string);
+
+  return gltf_parse_string(gltf_string);
+}
+
+gltf_parse_string :: (gltf_json_string: string) -> GLTF_Data {
   data: GLTF_Data;
 
   if gltf_json_string == "" then return data;
@@ -1019,9 +1028,7 @@ Math :: #import "Math";
 tests :: () {
   #import "File";
 
-  gltf := read_entire_file("./test-samples/box/Box.gltf");
-
-  data := parse_from_string(gltf);
+  data := gltf_parse_file("./test-samples/box/Box.gltf");
   defer gltf_free(*data);
 
   log("%\n", data);
