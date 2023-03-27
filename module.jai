@@ -1,17 +1,17 @@
 GLTF_Data :: struct {
-  asset        : Asset;
+  asset        : GLTF_Asset;
   scene        : int;
-  scenes       : [..] Scene;
-  skins        : [..] Skin;
-  accessors    : [..] Accessor;
-  nodes        : [..] Node;
-  meshes       : [..] Mesh;
-  buffer_views : [..] Buffer_View;
-  buffers      : [..] Buffer;
-  textures     : [..] Texture;
-  images       : [..] Image;
-  samplers     : [..] Sampler;
-  materials    : [..] Material;
+  scenes       : [..] GLTF_Scene;
+  skins        : [..] GLTF_Skin;
+  accessors    : [..] GLTF_Accessor;
+  nodes        : [..] GLTF_Node;
+  meshes       : [..] GLTF_Mesh;
+  buffer_views : [..] GLTF_Buffer_View;
+  buffers      : [..] GLTF_Buffer;
+  textures     : [..] GLTF_Texture;
+  images       : [..] GLTF_Image;
+  samplers     : [..] GLTF_Sampler;
+  materials    : [..] GLTF_Material;
 }
 
 // @todo: would like to remove everything all at once, thanks 
@@ -20,7 +20,7 @@ gltf_free :: (gltf_data: *GLTF_Data) {
   // fini(*gltf_data._pool);
 }
 
-gltf_parse_string :: (gltf_json_string: string) -> GLTF_Data {
+parse_from_string :: (gltf_json_string: string) -> GLTF_Data {
   data: GLTF_Data;
 
   if gltf_json_string == "" then return data;
@@ -53,7 +53,7 @@ gltf_parse_string :: (gltf_json_string: string) -> GLTF_Data {
 
   nodes := get_array(root, "nodes");
   for node_parsed: nodes {
-    node: Node;
+    node: GLTF_Node;
     defer array_add(*data.nodes, node);
 
     node.name   = get_string(node_parsed, "name");
@@ -96,7 +96,7 @@ gltf_parse_string :: (gltf_json_string: string) -> GLTF_Data {
 
   accessors := get_array(root, "accessors");
   for accessor_parsed: accessors {
-    accessor: Accessor;
+    accessor: GLTF_Accessor;
     defer array_add(*data.accessors, accessor);
 
     normalized, has_norm := get(accessor_parsed, "normalized", .BOOLEAN);
@@ -108,7 +108,7 @@ gltf_parse_string :: (gltf_json_string: string) -> GLTF_Data {
     accessor.count       = get_int(accessor_parsed, "count");
 
     comp_type := get_int(accessor_parsed, "componentType");
-    accessor.component_type = cast(Component_Type) comp_type;
+    accessor.component_type = cast(GLTF_Component_Type) comp_type;
 
     if get_string(accessor_parsed, "type") == {
       case "SCALAR";
@@ -138,7 +138,7 @@ gltf_parse_string :: (gltf_json_string: string) -> GLTF_Data {
 
   scenes := get_array(root, "scenes");
   for scene_parsed: scenes {
-    scene: Scene;
+    scene: GLTF_Scene;
     defer array_add(*data.scenes, scene);
 
     name := get_string(scene_parsed, "name");
@@ -155,7 +155,7 @@ gltf_parse_string :: (gltf_json_string: string) -> GLTF_Data {
 
   skins := get_array(root, "skins");
   for skins {
-    skin: Skin;
+    skin: GLTF_Skin;
     defer array_add(*data.skins, skin);
 
     skin.name = get_string(it, "name");
@@ -175,18 +175,18 @@ gltf_parse_string :: (gltf_json_string: string) -> GLTF_Data {
 
   meshes := get_array(root, "meshes");
   for mesh_parsed: meshes {
-    mesh: Mesh;
+    mesh: GLTF_Mesh;
     defer array_add(*data.meshes, mesh);
 
     name := get_string(mesh_parsed, "name");
 
     primitives := get_array(mesh_parsed, "primitives");
     for prim_parsed: primitives {
-      primitive: Primitive;
+      primitive: GLTF_Primivite;
       defer array_add(*mesh.primitives, primitive);
 
       mode := get_int(prim_parsed, "mode");
-      primitive.mode = cast(Mode) mode;
+      primitive.mode = cast(GLTF_Mode) mode;
 
       primitive.material         = get_int(prim_parsed, "material", -1);
       primitive.indices_accessor = get_int(prim_parsed, "indices", -1);
@@ -212,7 +212,7 @@ gltf_parse_string :: (gltf_json_string: string) -> GLTF_Data {
 
   buffers := get_array(root, "buffers");
   for buffer_parsed: buffers {
-    buffer: Buffer;
+    buffer: GLTF_Buffer;
     defer array_add(*data.buffers, buffer);
 
     buffer.byte_length = get_int(buffer_parsed, "byteLength"); 
@@ -227,11 +227,11 @@ gltf_parse_string :: (gltf_json_string: string) -> GLTF_Data {
 
   buffer_views := get_array(root, "bufferViews");
   for buffer_view_parsed: buffer_views {
-    buffer_view: Buffer_View;
+    buffer_view: GLTF_Buffer_View;
     defer array_add(*data.buffer_views, buffer_view);
 
     target := get_int(buffer_view_parsed, "target");
-    buffer_view.target = cast(Target) target;
+    buffer_view.target = cast(GLTF_Target) target;
 
     buffer_view.buffer      = get_int(buffer_view_parsed, "buffer", -1);
     buffer_view.byte_length = get_int(buffer_view_parsed, "byteLength");
@@ -247,7 +247,7 @@ gltf_parse_string :: (gltf_json_string: string) -> GLTF_Data {
 
   textures := get_array(root, "textures");
   for texture_parsed : textures {
-    texture: Texture;
+    texture: GLTF_Texture;
     defer array_add(*data.textures, texture);
 
     texture.sampler = get_int(texture_parsed, "sampler", -1);
@@ -262,7 +262,7 @@ gltf_parse_string :: (gltf_json_string: string) -> GLTF_Data {
 
   images := get_array(root, "images");
   for image_parsed : images {
-    image: Image;
+    image: GLTF_Image;
     defer array_add(*data.images, image);
 
     image.uri         = get_string(image_parsed, "uri");
@@ -280,29 +280,29 @@ gltf_parse_string :: (gltf_json_string: string) -> GLTF_Data {
 
   samplers := get_array(root, "samplers");
   for sampler_parsed: samplers {
-    sampler: Sampler;
+    sampler: GLTF_Sampler;
     defer array_add(*data.samplers, sampler);
 
     wrap_s, has_wrap_s := get(sampler_parsed, "wrapS", .NUMBER);
-    if has_wrap_s then sampler.wrap_s = cast(Wrap_Mode) parse_int(wrap_s);
+    if has_wrap_s then sampler.wrap_s = cast(GLTF_Wrap_Mode) parse_int(wrap_s);
 
     wrap_t, has_wrap_t := get(sampler_parsed, "wrapT", .NUMBER);
-    if has_wrap_t then sampler.wrap_t = cast(Wrap_Mode) parse_int(wrap_t);
+    if has_wrap_t then sampler.wrap_t = cast(GLTF_Wrap_Mode) parse_int(wrap_t);
 
     mag_filter, has_mag := get(sampler_parsed, "magFilter", .NUMBER);
     if has_mag {
-      sampler.mag_filter = cast(Mag_Filter) parse_int(mag_filter);
+      sampler.mag_filter = cast(GLTF_Mag_Filter) parse_int(mag_filter);
     }
 
     min_filter, has_min := get(sampler_parsed, "minFilter", .NUMBER);
     if has_min {
-      sampler.min_filter = cast(Min_Filter) parse_int(min_filter);
+      sampler.min_filter = cast(GLTF_Min_Filter) parse_int(min_filter);
     }
   }
 
   materials := get_array(root, "materials");
   for material_parsed: materials {
-    material: Material;
+    material: GLTF_Material;
     defer array_add(*data.materials, material);
 
     material.name = get_string(material_parsed, "name");
@@ -410,7 +410,7 @@ gltf_parse_string :: (gltf_json_string: string) -> GLTF_Data {
 //
 // When a node is targeted for animation, referenced by 
 // an animation.channel.target, matrix must not be present.
-Node :: struct {
+GLTF_Node :: struct {
   // The user-defined name of this object.
   name : string;
   // The index of the node's parent.
@@ -447,7 +447,7 @@ Node :: struct {
 }
 
 // A buffer points to binary geometry, animation, or skins.
-Buffer :: struct {
+GLTF_Buffer :: struct {
   // Relative paths are relative to the current glTF asset.
   // It could contains a data:-URI instead of a path.
   // Note: data-uri isn't implemented in this library.
@@ -457,7 +457,7 @@ Buffer :: struct {
 }
 
 // A view into a buffer generally representing a subset of the buffer.
-Buffer_View :: struct {
+GLTF_Buffer_View :: struct {
     // The index of the buffer.
     buffer := -1;
     // The length of the bufferView in bytes.
@@ -468,19 +468,19 @@ Buffer_View :: struct {
     stride : int;
     // The hint representing the intended GPU buffer type
     // to use with this buffer view.
-    target: Target;
+    target: GLTF_Target;
 }
 
 /// A typed view into a buffer view that contains raw binary data.
-Accessor :: struct {
+GLTF_Accessor :: struct {
   // The index of the bufferView.
   buffer_view := -1;
   // The offset relative to the start of the buffer view in bytes.
   byte_offset := 0;
   // The datatype of the accessor’s components.
-  component_type : Component_Type;
+  component_type : GLTF_Component_Type;
   // Specifies if the accessor’s elements are scalars, vectors, or matrices.
-  type : Accessor_Type;
+  type : GLTF_Accessor_Type;
   // Computed stride: @sizeOf(component_type) * type.
   stride  := 0;
   // The number of elements referenced by this accessor.
@@ -490,7 +490,7 @@ Accessor :: struct {
 }
 
 // The root nodes of a scene.
-Scene :: struct {
+GLTF_Scene :: struct {
   // The user-defined name of this object.
   name  : string;
   // The indices of each root node.
@@ -498,7 +498,7 @@ Scene :: struct {
 }
 
 /// Joints and matrices defining a skin.
-Skin :: struct {
+GLTF_Skin :: struct {
   // The user-defined name of this object.
   name: string;
   // The index of the accessor containing the floating-point
@@ -513,7 +513,7 @@ Skin :: struct {
 
 // Reference to a material texture.
 // @Note: It could be a normal/occlusion/color texture!
-Texture_Info :: struct {
+GLTF_Texture_Info :: struct {
   // The index of the texture.
   index : int;
   // The set index of texture’s TEXCOORD attribute
@@ -531,43 +531,43 @@ Texture_Info :: struct {
 // A set of parameter values that are used to define
 // the metallic-roughness material model
 // from Physically-Based Rendering methodology.
-Metallic_Roughness :: struct {
+GLTF_Metallic_Roughness :: struct {
     // The factors for the base color of the material.
     base_color_factor := float.[1, 1, 1, 1];
     // The base color texture.
     has_base_color     := false;
-    base_color_texture : Texture_Info;
+    base_color_texture : GLTF_Texture_Info;
     // The factor for the metalness of the material.
     metallic_factor   := 1.;
     // The factor for the roughness of the material.
     roughness_factor  := 1.;
     // The metallic-roughness texture.
     has_metallic_roughness     := false;
-    metallic_roughness_texture : Texture_Info;
+    metallic_roughness_texture : GLTF_Texture_Info;
 }
 
 // The material appearance of a primitive.
 
-Material :: struct {
+GLTF_Material :: struct {
   // The user-defined name of this object.
   name: string;
   // A set of parameter values that are used to define
   // the metallic-roughness material model
   // from Physically Based Rendering methodology.
-  metallic_roughness := Metallic_Roughness.{};
+  metallic_roughness := GLTF_Metallic_Roughness.{};
   // The tangent space normal texture.
   has_normal        := false;
-  normal_texture    : Texture_Info;
+  normal_texture    : GLTF_Texture_Info;
   // The occlusion texture.
   has_occlusion     := false;
-  occlusion_texture : Texture_Info;
+  occlusion_texture : GLTF_Texture_Info;
   // The emissive texture.
   has_emissive      := false;
-  emissive_texture  : Texture_Info;
+  emissive_texture  : GLTF_Texture_Info;
   // The factors for the emissive color of the material.
   emissive_factor := float.[0, 0, 0];
   // The alpha rendering mode of the material.
-  alpha_mode := Alpha_Mode.OPAQUE;
+  alpha_mode := GLTF_Alpha_Mode.OPAQUE;
   // The alpha cutoff value of the material.
   alpha_cutoff := 0.5;
   // Specifies whether the material is double sided.
@@ -587,12 +587,12 @@ Material :: struct {
   // The transmission texture.
   // @Note: from khr_materials_transmission extension.
   has_transmission     := false;
-  transmission_texture : Texture_Info;
+  transmission_texture : GLTF_Texture_Info;
 }
 
 // The material’s alpha rendering mode enumeration specifying
 // the interpretation of the alpha value of the base color.
-Alpha_Mode :: enum {
+GLTF_Alpha_Mode :: enum {
   // The alpha value is ignored, and the rendered output is fully opaque.
   OPAQUE;
   // The rendered output is either fully opaque or fully transparent
@@ -607,7 +607,7 @@ Alpha_Mode :: enum {
 }
 
 /// A texture and its sampler.
-Texture :: struct {
+GLTF_Texture :: struct {
   // The index of the sampler used by this texture.
   // When undefined, a sampler with repeat wrapping and
   // auto filtering should be used.
@@ -620,7 +620,7 @@ Texture :: struct {
 
 /// Image data used to create a texture.
 /// Image may be referenced by an uri or a buffer view index.
-Image :: struct {
+GLTF_Image :: struct {
   // The URI (or IRI) of the image.
   uri : string;
   // The image’s media type.
@@ -634,13 +634,13 @@ Image :: struct {
   data : string;
 }
 
-Wrap_Mode :: enum u32 {
+GLTF_Wrap_Mode :: enum u32 {
   CLAMP_TO_EDGE   :: 33071;
   MIRRORED_REPEAT :: 33648;
   REPEAT          :: 10497;
 }
 
-Min_Filter :: enum u32 {
+GLTF_Min_Filter :: enum u32 {
   NEAREST                :: 9728;
   LINEAR                 :: 9729;
   NEAREST_MIPMAP_NEAREST :: 9984;
@@ -649,24 +649,24 @@ Min_Filter :: enum u32 {
   LINEAR_MIPMAP_LINEAR   :: 9987;
 }
 
-Mag_Filter :: enum u32 {
+GLTF_Mag_Filter :: enum u32 {
   NEAREST :: 9728;
   LINEAR  :: 9729;
 }
 
 // Texture sampler properties for filtering and wrapping modes.
-Sampler :: struct {
+GLTF_Sampler :: struct {
   // Magnification filter.
-  mag_filter := Mag_Filter.NEAREST;
+  mag_filter := GLTF_Mag_Filter.NEAREST;
   // Minification filter.
-  min_filter := Min_Filter.NEAREST;
+  min_filter := GLTF_Min_Filter.NEAREST;
   // S (U) wrapping mode.
-  wrap_s     := Wrap_Mode.REPEAT;
+  wrap_s     := GLTF_Wrap_Mode.REPEAT;
   // T (U) wrapping mode.
-  wrap_t     := Wrap_Mode.REPEAT;
+  wrap_t     := GLTF_Wrap_Mode.REPEAT;
 }
 
-Attributes :: struct {
+GLTF_Attributes :: struct {
   position_accessor   := -1;
   normal_accessor     := -1;
   tangent_accessor    := -1;
@@ -678,7 +678,7 @@ Attributes :: struct {
   texcoord_2_accessor := -1;
 }
 
-Accessor_Type :: enum {
+GLTF_Accessor_Type :: enum {
   SCALAR;
   VEC2;
   VEC3;
@@ -689,13 +689,13 @@ Accessor_Type :: enum {
 }
 
 // Enum values from GLTF 2.0 spec.
-Target :: enum u32 {
+GLTF_Target :: enum u32 {
   ARRAY_BUFFER         :: 34962;
   ELEMENT_ARRAY_BUFFER :: 34963;
 }
 
 // Enum values from GLTF 2.0 spec.
-Component_Type :: enum u32 {
+GLTF_Component_Type :: enum u32 {
   BYTE             :: 5120;
   UNSIGNED_BYTE    :: 5121;
   SHORT            :: 5122;
@@ -705,7 +705,7 @@ Component_Type :: enum u32 {
 }
 
 // The topology type of primitives to render.
-Mode :: enum u32 {
+GLTF_Mode :: enum u32 {
   POINTS         :: 0;
   LINES          :: 1;
   LINE_LOOP      :: 2;
@@ -716,7 +716,7 @@ Mode :: enum u32 {
 }
 
 // The name of the node’s TRS property to animate.
-Target_Property :: enum {
+GLTF_Target_Property :: enum {
   // For the "translation" property, the values that are provided by the
   // sampler are the translation along the X, Y, and Z axes.
   TRANSLATION;
@@ -732,7 +732,7 @@ Target_Property :: enum {
 
 // An animation channel combines an animation sampler
 // with a target property being animated.
-Channel :: struct {
+GLTF_Channel :: struct {
   // The index of a sampler in this animation used to
   // compute the value for the target.
   sampler := -1;
@@ -743,12 +743,12 @@ Channel :: struct {
     node := -1;
     // The name of the node’s TRS property to animate, or the "weights"
     // of the Morph Targets it instantiates.
-    property : Target_Property;
+    property : GLTF_Target_Property;
   };
 }
 
 // Interpolation algorithm.
-Interpolation :: enum {
+GLTF_Interpolation :: enum {
     // The animated values are linearly interpolated between keyframes.
     // When targeting a rotation, spherical linear interpolation (slerp)
     // should be used to interpolate quaternions.
@@ -763,35 +763,35 @@ Interpolation :: enum {
 
 // An animation sampler combines timestamps
 // with a sequence of output values and defines an interpolation algorithm.
-Animation_Sampler :: struct {
+GLTF_Animation_Sampler :: struct {
   // The index of an accessor containing keyframe timestamps.
   input := -1;
   // The index of an accessor, containing keyframe output values.
   output := -1;
   // Interpolation algorithm.
-  interpolation := Interpolation.LINEAR;
+  interpolation := GLTF_Interpolation.LINEAR;
 }
 
 // A keyframe animation.
-Animation :: struct {
+GLTF_Animation :: struct {
     // The user-defined name of this object.
     name : string;
     // An array of animation channels.
     // An animation channel combines an animation sampler with a target
     // property being animated.
     // Different channels of the same animation must not have the same targets.
-    channels : [..] Channel;
+    channels : [..] GLTF_Channel;
     // An array of animation samplers.
     // An animation sampler combines timestamps with a sequence of output
     // values and defines an interpolation algorithm.
-    samplers: [..] Animation_Sampler;
+    samplers: [..] GLTF_Animation_Sampler;
 }
 
 // Geometry to be rendered with the given material.
-Primitive :: struct {
-  using attributes : Attributes;
+GLTF_Primivite :: struct {
+  using attributes : GLTF_Attributes;
   // The topology type of primitives to render.
-  mode := Mode.TRIANGLES;
+  mode := GLTF_Mode.TRIANGLES;
   // The index of the accessor that contains the vertex indices.
   indices_accessor := -1;
   // The index of the material to apply to this primitive when rendering.
@@ -800,15 +800,15 @@ Primitive :: struct {
 
 // A set of primitives to be rendered.
 // Its global transform is defined by a node that references it.
-Mesh :: struct {
+GLTF_Mesh :: struct {
   // The user-defined name of this object.
   name : string;
   // An array of primitives, each defining geometry to be rendered.
-  primitives : [..] Primitive;
+  primitives : [..] GLTF_Primivite;
 }
 
 // Metadata about the glTF asset.
-Asset :: struct {
+GLTF_Asset :: struct {
   // The glTF version that this asset targets.
   version : string;
   // Tool that generated this glTF model. Useful for debugging.
@@ -820,7 +820,7 @@ Asset :: struct {
 // A camera’s projection.
 // A node may reference a camera to apply a transform to place the camera
 // in the scene.
-Camera :: struct {
+GLTF_Camera :: struct {
   // A perspective camera containing properties to create a
   // perspective projection matrix.
   Perspective :: struct {
@@ -863,7 +863,7 @@ Camera :: struct {
 }
 
 // Specifies the light type.
-Light_Type :: enum {
+GLTF_Light_Type :: enum {
     // Directional lights act as though they are infinitely far away and emit light in the direction of the local -z axis.
     // This light type inherits the orientation of the node that it belongs to; position and scale are ignored
     // except for their effect on the inherited node orientation. Because it is at an infinite distance,
@@ -888,7 +888,7 @@ Light_Type :: enum {
 }
 
 // A directional, point or spot light.
-Light :: struct {
+GLTF_Light :: struct {
   name : string;
   // Color of the light source.
   color := float.[1, 1, 1];
@@ -896,40 +896,24 @@ Light :: struct {
   // while `directional` lights use illuminance in lux (lm/m^2).
   intensity := 1.;
   // Specifies the light type.
-  type : Light_Type;
+  type : GLTF_Light_Type;
   // When a light's type is spot, the spot property on the light is required.
   has_spot := false;
-  spot     : Light_Spot;
+  spot     : GLTF_Light_Spot;
   // A distance cutoff at which the light's intensity may be considered to have reached zero.
   range := 0.;
 }
 
-Light_Spot :: struct {
+GLTF_Light_Spot :: struct {
   // Angle in radians from centre of spotlight where falloff begins.
   inner_cone_angle := 0.;
   // Angle in radians from centre of spotlight where falloff ends.
   outer_cone_angle := Math.PI / 4;
 }
 
-    
-// #run {
-//   Compiler :: #import "Compiler";
-//   Compiler.set_build_options_dc(.{ do_output = false });
-
-//   data := gltf_parse_string(JSON_TEST);
-
-//   print("%\n", data);
-
-//   gltf_free(*data);
-
-//   report := make_leak_report();
-//   // log_leak_report(report);
-// }
-
-
 #scope_file;
 
-fill_parents :: (data: *GLTF_Data, node: *Node, parent_index: int) {
+fill_parents :: (data: *GLTF_Data, node: *GLTF_Node, parent_index: int) {
   for node.children {
     child_node := *data.nodes[it];
     child_node.parent = parent_index;
@@ -937,15 +921,15 @@ fill_parents :: (data: *GLTF_Data, node: *Node, parent_index: int) {
   }
 }
 
-parse_map :: (value: JSON_Value, key: string) -> Texture_Info, bool {
-  texture_info: Texture_Info;
+parse_map :: (value: JSON_Value, key: string) -> GLTF_Texture_Info, bool {
+  texture_info: GLTF_Texture_Info;
 
   texture, has_texture := get(value, key, .OBJECT);
 
   if has_texture {
     index    := get(texture, "index", .NUMBER);
     texcoord := get(texture, "texCoord", .NUMBER);
-    texture_info = Texture_Info.{
+    texture_info = GLTF_Texture_Info.{
       index      = parse_int(index),
       texcoord   = parse_int(texcoord),
     };
@@ -1037,7 +1021,7 @@ tests :: () {
 
   gltf := read_entire_file("./test-samples/box/Box.gltf");
 
-  data := gltf_parse_string(gltf);
+  data := parse_from_string(gltf);
   defer gltf_free(*data);
 
   log("%\n", data);
