@@ -1,4 +1,10 @@
+// @todo:
+// - load correctly world/local transforms
+// - cameras
+// - extentions...
+
 GLTF_Data :: struct {
+  filepath     : string;
   asset        : GLTF_Asset;
   scene        : int;
   scenes       : [..] GLTF_Scene;
@@ -21,12 +27,51 @@ gltf_free :: (gltf_data: *GLTF_Data) {
 }
 
 gltf_parse_file :: (gltf_filepath: string) -> GLTF_Data {
-  #import "File";
-
   gltf_string := read_entire_file(gltf_filepath);
   defer free(gltf_string);
 
-  return gltf_parse_string(gltf_string);
+  gltf_data := gltf_parse_string(gltf_string);
+  gltf_data.filepath = gltf_filepath;
+
+  return gltf_data;
+}
+
+gltf_load_buffers :: (gltf_data: *GLTF_Data) -> bool {
+  folder_path := gltf_data.filepath;
+  folder_path.count = find_index_from_right(gltf_data.filepath, #char "/") + 1;
+
+  success := true;
+
+  for * buffer: gltf_data.buffers {
+    bin_path      := join(folder_path, buffer.uri); // @leak
+    data, success := read_entire_file(bin_path);
+
+    if !success then success = false;
+
+    buffer.data = data;
+  }
+
+  return success;
+}
+
+get_component_count :: (type: GLTF_Accessor_Type) -> int {
+  if type == {
+    case .VEC2;
+      return 2;
+    case .VEC3;
+      return 3;
+    case .VEC4;
+      return 4;
+    case .MAT2;
+      return 4;
+    case .MAT3;
+      return 9;
+    case .MAT4;
+      return 16;
+    case .SCALAR; #through;
+    case;
+      return 1;
+  }
 }
 
 gltf_parse_string :: (gltf_json_string: string) -> GLTF_Data {
@@ -91,9 +136,51 @@ gltf_parse_string :: (gltf_json_string: string) -> GLTF_Data {
       for val: translation node.translation[it_index] = parse_float(val);
     }
 
+    node.local_transform = get_local_transform(*node);
+
     children, has_children := get_array(node_parsed, "children");
     if has_children {
       for val: children array_add(*node.children, parse_int(val)); 
+    }
+  }
+
+
+
+  //
+  // buffers.
+  //
+
+  buffers := get_array(root, "buffers");
+  for buffer_parsed: buffers {
+    buffer: GLTF_Buffer;
+    defer array_add(*data.buffers, buffer);
+
+    buffer.byte_length = get_int(buffer_parsed, "byteLength"); 
+    buffer.uri         = get_string(buffer_parsed, "uri");
+  }
+
+
+
+  //
+  // buffer_views.
+  //
+
+  buffer_views := get_array(root, "bufferViews");
+  for buffer_view_parsed: buffer_views {
+    buffer_view: GLTF_Buffer_View;
+    defer array_add(*data.buffer_views, buffer_view);
+
+    target := get_int(buffer_view_parsed, "target");
+    buffer_view.target = cast(GLTF_Target) target;
+
+    buffer_view.buffer      = get_int(buffer_view_parsed, "buffer", -1);
+    buffer_view.byte_length = get_int(buffer_view_parsed, "byteLength");
+    buffer_view.byte_offset = get_int(buffer_view_parsed, "byteOffset");
+
+    stride, has_stride := get_int(buffer_view_parsed, "byteStride");
+    if has_stride {
+      buffer_view.has_stride = true;
+      buffer_view.stride = stride;
     }
   }
 
@@ -111,7 +198,6 @@ gltf_parse_string :: (gltf_json_string: string) -> GLTF_Data {
     normalized, has_norm := get(accessor_parsed, "normalized", .BOOLEAN);
     if has_norm then accessor.normalized = normalized.boolean;
 
-    accessor.stride = get_int(accessor_parsed, "byteStride");
     accessor.buffer_view = get_int(accessor_parsed, "bufferView", -1);
     accessor.byte_offset = get_int(accessor_parsed, "byteOffset");
     accessor.count       = get_int(accessor_parsed, "count");
@@ -120,21 +206,43 @@ gltf_parse_string :: (gltf_json_string: string) -> GLTF_Data {
     accessor.component_type = cast(GLTF_Component_Type) comp_type;
 
     if get_string(accessor_parsed, "type") == {
-      case "SCALAR";
-        accessor.type = .SCALAR;
-      case "VEC2";
-        accessor.type = .VEC2;
-      case "VEC3";
-        accessor.type = .VEC3;
-      case "VEC4";
-        accessor.type = .VEC4;
-      case "MAT2";
-        accessor.type = .MAT2;
-      case "MAT3";
-        accessor.type = .MAT3;
-      case "MAT4";
-        accessor.type = .MAT4;
+      case "SCALAR"; accessor.type = .SCALAR;
+      case "VEC2";   accessor.type = .VEC2;
+      case "VEC3";   accessor.type = .VEC3;
+      case "VEC4";   accessor.type = .VEC4;
+      case "MAT2";   accessor.type = .MAT2;
+      case "MAT3";   accessor.type = .MAT3;
+      case "MAT4";   accessor.type = .MAT4;
     }
+
+    if accessor.buffer_view != -1 {
+      buffer_view := data.buffer_views[accessor.buffer_view];
+
+      if buffer_view.has_stride {
+        accessor.stride = buffer_view.stride;
+        continue;
+      }
+    } 
+
+    size := 0;
+    if #complete accessor.component_type == {
+      case .BYTE;             size = size_of(s8);
+      case .UNSIGNED_BYTE;    size = size_of(u8);
+      case .SHORT;            size = size_of(s16);
+      case .UNSIGNED_SHORT;   size = size_of(u16);
+      case .UNSIGNED_INTEGER; size = size_of(u32);
+      case .FLOAT;            size = size_of(float);
+    }
+
+    if #complete accessor.type == {
+      case .SCALAR; accessor.stride = size;
+      case .VEC2;   accessor.stride = 2 * size;
+      case .VEC3;   accessor.stride = 3 * size;
+      case .VEC4;   accessor.stride = 4 * size;
+      case .MAT2;   accessor.stride = 4 * size;
+      case .MAT3;   accessor.stride = 9 * size;
+      case .MAT4;   accessor.stride = 16 * size;
+    };
   }
 
 
@@ -205,47 +313,12 @@ gltf_parse_string :: (gltf_json_string: string) -> GLTF_Data {
       primitive.normal_accessor     = get_int(attributes, "NORMAL", -1);
       primitive.tangent_accessor    = get_int(attributes, "TANGENT", -1);
       primitive.color_accessor      = get_int(attributes, "COLOR", -1);
-      primitive.joints_accessor     = get_int(attributes, "JOINTS", -1);
-      primitive.weights_accessor    = get_int(attributes, "WEIGHTS", -1);
+      primitive.joints_accessor     = get_int(attributes, "JOINTS_0", -1);
+      primitive.weights_accessor    = get_int(attributes, "WEIGHTS_0", -1);
       primitive.texcoord_0_accessor = get_int(attributes, "TEXCOORD_0", -1);
       primitive.texcoord_1_accessor = get_int(attributes, "TEXCOORD_1", -1);
       primitive.texcoord_2_accessor = get_int(attributes, "TEXCOORD_2", -1);
     }
-  }
-
-
-
-  //
-  // buffers.
-  //
-
-  buffers := get_array(root, "buffers");
-  for buffer_parsed: buffers {
-    buffer: GLTF_Buffer;
-    defer array_add(*data.buffers, buffer);
-
-    buffer.byte_length = get_int(buffer_parsed, "byteLength"); 
-    buffer.uri         = get_string(buffer_parsed, "uri");
-  }
-
-
-
-  //
-  // buffer_views.
-  //
-
-  buffer_views := get_array(root, "bufferViews");
-  for buffer_view_parsed: buffer_views {
-    buffer_view: GLTF_Buffer_View;
-    defer array_add(*data.buffer_views, buffer_view);
-
-    target := get_int(buffer_view_parsed, "target");
-    buffer_view.target = cast(GLTF_Target) target;
-
-    buffer_view.buffer      = get_int(buffer_view_parsed, "buffer", -1);
-    buffer_view.byte_length = get_int(buffer_view_parsed, "byteLength");
-    buffer_view.byte_offset = get_int(buffer_view_parsed, "byteOffset");
-    buffer_view.stride      = get_int(buffer_view_parsed, "byteStride");
   }
 
 
@@ -258,9 +331,8 @@ gltf_parse_string :: (gltf_json_string: string) -> GLTF_Data {
   for texture_parsed : textures {
     texture: GLTF_Texture;
     defer array_add(*data.textures, texture);
-
     texture.sampler = get_int(texture_parsed, "sampler", -1);
-    texture.source= get_int(texture_parsed, "source", -1);
+    texture.source  = get_int(texture_parsed, "source", -1);
   }
 
 
@@ -327,7 +399,7 @@ gltf_parse_string :: (gltf_json_string: string) -> GLTF_Data {
       for color_factor base_color_factor[it_index] = parse_float(it);
 
       {
-        texture, has_texture := parse_map(metal_rough, "baseColorTexture");
+        texture, has_texture := parse_texture_info(metal_rough, "baseColorTexture");
         if has_texture {
           has_base_color = true;
           base_color_texture = texture;
@@ -335,7 +407,7 @@ gltf_parse_string :: (gltf_json_string: string) -> GLTF_Data {
       }
 
       {
-        texture, has_texture := parse_map(metal_rough, "metallicRoughnessTexture");
+        texture, has_texture := parse_texture_info(metal_rough, "metallicRoughnessTexture");
         if has_texture {
           has_metallic_roughness = true;
           metallic_roughness_texture = texture;
@@ -346,19 +418,19 @@ gltf_parse_string :: (gltf_json_string: string) -> GLTF_Data {
       roughness_factor = get_float(material_parsed, "roughnessFactor");
     }
 
-    normal_texture, has_normal_texture := parse_map(material_parsed, "normalTexture");
+    normal_texture, has_normal_texture := parse_texture_info(material_parsed, "normalTexture");
     if has_normal_texture {
       material.has_normal = true;
       material.normal_texture = normal_texture;
     }
 
-    occlu_texture, has_occlu_texture := parse_map(material_parsed, "occlusionTexture");
+    occlu_texture, has_occlu_texture := parse_texture_info(material_parsed, "occlusionTexture");
     if has_occlu_texture {
       material.has_occlusion = true;
       material.occlusion_texture = occlu_texture;
     }
 
-    emiss_texture, has_emiss_texture := parse_map(material_parsed, "emissiveTexture");
+    emiss_texture, has_emiss_texture := parse_texture_info(material_parsed, "emissiveTexture");
     if has_emiss_texture {
       material.has_emissive = true;
       material.emissive_texture = emiss_texture;
@@ -389,6 +461,11 @@ gltf_parse_string :: (gltf_json_string: string) -> GLTF_Data {
       node := *data.nodes[it];
       fill_parents(*data, node, it);
     }
+  }
+
+
+  for * data.nodes {
+    it.world_transform = get_world_transform(*data, it);
   }
 
   return data;
@@ -425,6 +502,8 @@ GLTF_Node :: struct {
   // The index of the node's parent.
   // A node is called a root node when it doesn’t have a parent.
   parent := -1;
+  world_transform := Matrix4_Identity;
+  local_transform := Matrix4_Identity;
   // The index of the mesh in this node.
   mesh   := -1;
   // The index of the camera referenced by this node.
@@ -463,21 +542,24 @@ GLTF_Buffer :: struct {
   uri : string;
   // The length of the buffer in bytes.
   byte_length : int;
+  // Buffer's data once gltf_load_data was called.
+  data : string;
 }
 
 // A view into a buffer generally representing a subset of the buffer.
 GLTF_Buffer_View :: struct {
-    // The index of the buffer.
-    buffer := -1;
-    // The length of the bufferView in bytes.
-    byte_length : int;
-    // The offset into the buffer in bytes.
-    byte_offset : int;
-    // The stride, in bytes.
-    stride : int;
-    // The hint representing the intended GPU buffer type
-    // to use with this buffer view.
-    target: GLTF_Target;
+  // The index of the buffer.
+  buffer := -1;
+  // The length of the bufferView in bytes.
+  byte_length : int;
+  // The offset into the buffer in bytes.
+  byte_offset : int;
+  // The stride, in bytes.
+  has_stride := false;
+  stride : int;
+  // The hint representing the intended GPU buffer type
+  // to use with this buffer view.
+  target: GLTF_Target;
 }
 
 /// A typed view into a buffer view that contains raw binary data.
@@ -490,7 +572,8 @@ GLTF_Accessor :: struct {
   component_type : GLTF_Component_Type;
   // Specifies if the accessor’s elements are scalars, vectors, or matrices.
   type : GLTF_Accessor_Type;
-  // Computed stride: @sizeOf(component_type) * type.
+  // Computed stride: size_of(component_type) * type.
+  // @Note: If buffer_view is set, it's the buffer_view's stride.
   stride  := 0;
   // The number of elements referenced by this accessor.
   count   := 0;
@@ -524,7 +607,7 @@ GLTF_Skin :: struct {
 // @Note: It could be a normal/occlusion/color texture!
 GLTF_Texture_Info :: struct {
   // The index of the texture.
-  index : int;
+  index := -1;
   // The set index of texture’s TEXCOORD attribute
   // used for texture coordinate mapping.
   texcoord := 0;
@@ -917,7 +1000,7 @@ GLTF_Light_Spot :: struct {
   // Angle in radians from centre of spotlight where falloff begins.
   inner_cone_angle := 0.;
   // Angle in radians from centre of spotlight where falloff ends.
-  outer_cone_angle := Math.PI / 4;
+  outer_cone_angle := PI / 4;
 }
 
 #scope_file;
@@ -930,7 +1013,50 @@ fill_parents :: (data: *GLTF_Data, node: *GLTF_Node, parent_index: int) {
   }
 }
 
-parse_map :: (value: JSON_Value, key: string) -> GLTF_Texture_Info, bool {
+// row-major
+get_local_transform :: (using node: GLTF_Node) -> Matrix4 {
+  if has_matrix {
+    transform : Matrix4 = ---;
+    for matrix transform.floats[it_index] = it;
+
+    return transpose(transform);
+  }
+
+  t := make_vector3(translation);
+  r := make_quaternion(rotation[0], rotation[1], rotation[2], rotation[3]);
+  s := make_vector3(scale);
+
+  return make_translation_matrix4(t) * rotation_matrix(Matrix4, r) * make_scale_matrix4(s);
+}
+
+get_world_transform :: (gltf_data: *GLTF_Data, node: GLTF_Node) -> Matrix4 {
+  parent_index := node.parent;
+  node_transform := node.local_transform;
+
+  while parent_index >= 0 {
+    parent := gltf_data.nodes[parent_index];
+    node_transform = parent.local_transform * node_transform;
+    parent_index = parent.parent;
+  }
+
+  return node_transform;
+
+
+    // var parent_index = node.parent;
+    // var node_transform: Mat4 = getLocalTransform(node);
+
+    // while (parent_index != null) {
+    //     const parent = data.nodes.items[parent_index.?];
+    //     const parent_transform = getLocalTransform(parent);
+
+    //     node_transform = helpers.mul(parent_transform, node_transform);
+    //     parent_index = parent.parent;
+    // }
+
+    // return node_transform;
+}
+
+parse_texture_info :: (value: JSON_Value, key: string) -> GLTF_Texture_Info, bool {
   texture_info: GLTF_Texture_Info;
 
   texture, has_texture := get(value, key, .OBJECT);
@@ -1012,13 +1138,15 @@ get :: (json_val     : JSON_Value,
 
 // @todo: remove MEMORY_DEBUGGER.
 #import "Basic";
+#import "File";
+#import "String";
 #import "Hash_Table";
 #import "Flat_Pool";
 #import "jason";
 #import "unicode_utils";
 // #import, dir "./modules/jason";
 // #import, dir "./modules/unicode_utils";
-Math :: #import "Math";
+#import "Math";
 
 
 
@@ -1030,6 +1158,8 @@ tests :: () {
 
   data := gltf_parse_file("./test-samples/box/Box.gltf");
   defer gltf_free(*data);
+
+  gltf_load_buffers(*data);
 
   log("%\n", data);
 

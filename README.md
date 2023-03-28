@@ -22,6 +22,13 @@ main :: () {
 
 ```
 
+## Interface
+
+- `gltf_parse_file    :: (gltf_filepath: string) -> GLTF_Data`
+- `gltf_parse_string  :: (gltf_json: string) -> GLTF_Data`
+- `gltf_load_buffers  :: (gltf_data: *GLTF_Data)`
+- `gltf_free          :: (gltf_data: *GLTF_Data)`
+
 Note: **Jai beta 0.1.059 is required.**
 
 ## Features
@@ -29,7 +36,8 @@ Note: **Jai beta 0.1.059 is required.**
 - [x] glTF 2.0 json file
 - [x] Scenes
 - [x] Nodes
-- [x] Buffers/BufferViews
+- [x] Buffers
+- [x] BufferViews
 - [x] Meshes
 - [x] Images
 - [x] Materials
