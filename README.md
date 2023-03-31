@@ -40,15 +40,15 @@ main :: () {
 - [x] Buffers
 - [x] BufferViews
 - [x] Meshes
+- [x] Textures
 - [x] Images
 - [x] Materials
 - [x] Animations
 - [x] Skins
 - [x] Cameras
-- [x] Parse `glb` files
+- [ ] Parse `glb` files
 - [ ] Morth targets
 - [ ] Extras data
-- [ ] glTF writer
 
 Also, we supports some glTF extensions:
 

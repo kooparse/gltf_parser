@@ -1,6 +1,4 @@
 // @todo:
-// - load correctly world/local transforms
-// - cameras
 // - extentions...
 
 GLTF_Data :: struct {
@@ -18,6 +16,7 @@ GLTF_Data :: struct {
   images       : [..] GLTF_Image;
   samplers     : [..] GLTF_Sampler;
   materials    : [..] GLTF_Material;
+  cameras      : [..] GLTF_Camera;
 }
 
 
@@ -310,6 +309,12 @@ gltf_parse_string :: (gltf_json_string: string) -> GLTF_Data {
     }
   }
 
+
+
+  //
+  // materials
+  //
+
   materials := get_array(root, "materials");
   for material_parsed: materials {
     material: GLTF_Material;
@@ -385,6 +390,43 @@ gltf_parse_string :: (gltf_json_string: string) -> GLTF_Data {
     // @todo: Make khr_materials_transmission extension.
   }
 
+
+
+  //
+  // cameras.
+  //
+
+  cameras := get_array(root, "cameras");
+  for camera_parsed: cameras {
+    camera: GLTF_Camera;
+    defer array_add(*data.cameras, camera);
+
+    type := get_string(camera_parsed, "type");
+
+    if type == {
+      case "perspective";
+        parsed := get(camera_parsed, "perspective", .OBJECT);
+        camera.type = .PERSPECTIVE;
+        camera.perspective = .{
+          aspect_ratio = get_float(parsed, "aspectRatio"),
+          y_fov        = get_float(parsed, "yfov"),
+          z_far        = get_float(parsed, "zfar"),
+          z_near       = get_float(parsed, "znear"),
+        };
+      case "orthographic";
+        parsed := get(camera_parsed, "orthographic", .OBJECT);
+        camera.type = .ORTHOGRAPHIC;
+        camera.orthographic = .{
+          x_mag  = get_float(parsed, "xmag"),
+          y_mag  = get_float(parsed, "ymag"),
+          z_far  = get_float(parsed, "zfar"),
+          z_near = get_float(parsed, "znear"),
+        };
+    }
+  }
+
+
+  // Fill parents in nodes, to easily construct a hierarchy.
   for scene: data.scenes {
     for scene.nodes {
       node := *data.nodes[it];
@@ -393,6 +435,7 @@ gltf_parse_string :: (gltf_json_string: string) -> GLTF_Data {
   }
 
 
+  // Once all nodes are set, we could process the world_transform.
   for * data.nodes {
     it.world_transform = get_world_transform(*data, it);
   }
@@ -926,11 +969,11 @@ GLTF_Camera :: struct {
     aspect_ratio := 0.;
     // The vertical field of view in radians.
     // This value should be less than π.
-    yfo := 0.;
+    y_fov := 0.;
     // The distance to the far clipping plane.
-    zfar := 0.;
+    z_far := 0.;
     // The distance to the near clipping plane.
-    znear := 0.;
+    z_near := 0.;
   }
 
   // An orthographic camera containing properties to create an
@@ -953,6 +996,7 @@ GLTF_Camera :: struct {
   }
 
   name : string;
+  type : enum { PERSPECTIVE; ORTHOGRAPHIC; };
 
   union {
     perspective  : Perspective;
@@ -1046,20 +1090,6 @@ get_world_transform :: (gltf_data: *GLTF_Data, node: GLTF_Node) -> Matrix4 {
   }
 
   return node_transform;
-
-
-    // var parent_index = node.parent;
-    // var node_transform: Mat4 = getLocalTransform(node);
-
-    // while (parent_index != null) {
-    //     const parent = data.nodes.items[parent_index.?];
-    //     const parent_transform = getLocalTransform(parent);
-
-    //     node_transform = helpers.mul(parent_transform, node_transform);
-    //     parent_index = parent.parent;
-    // }
-
-    // return node_transform;
 }
 
 parse_texture_info :: (value: JSON_Value, key: string) -> GLTF_Texture_Info, bool {
@@ -1162,21 +1192,53 @@ get :: (json_val     : JSON_Value,
 tests :: () {
   #import "File";
 
-  data := gltf_parse_file("./test-samples/box/Box.gltf");
-  defer gltf_free(*data);
+  // A simple test 
+  {
+    data := gltf_parse_file("./test-samples/box/Box.gltf");
+    defer gltf_free(*data);
 
-  gltf_load_buffers(*data);
+    gltf_load_buffers(*data);
 
-  log("%\n", data);
+    log("Gltf_Data :: %", data);
 
-  assert(data.asset.generator == "COLLADA2GLTF");
-  assert(data.asset.version == "2.0");
-  assert(data.scene == 0);
-  assert(data.scenes.count == 1);
-  assert(data.nodes.count == 2);
-  assert(data.meshes.count == 1);
-  assert(data.accessors.count == 3);
-  assert(data.materials.count == 1);
-  assert(data.buffer_views.count == 2);
-  assert(data.buffers.count == 1);
+    assert(data.asset.generator == "COLLADA2GLTF");
+    assert(data.asset.version == "2.0");
+    assert(data.scene == 0);
+    assert(data.scenes.count == 1);
+    assert(data.nodes.count == 2);
+    assert(data.meshes.count == 1);
+    assert(data.cameras.count == 0);
+    assert(data.accessors.count == 3);
+    assert(data.materials.count == 1);
+    assert(data.buffer_views.count == 2);
+    assert(data.buffers.count == 1);
+  }
+
+  // Verify that we correctly get cameras.
+  {
+    data := gltf_parse_file("./test-samples/cameras/Cameras.gltf");
+    defer gltf_free(*data);
+
+    log("Gltf_Data :: %", data);
+
+    assert(data.cameras.count == 2);
+
+    cam_1 := data.cameras[0];
+    cam_2 := data.cameras[1];
+
+    assert(cam_1.type == .PERSPECTIVE);
+    assert(cam_2.type == .ORTHOGRAPHIC);
+
+    perspective := cam_1.perspective;
+    assert(perspective.aspect_ratio == 1.0);
+    assert(perspective.y_fov == .7);
+    assert(perspective.z_far == 100);
+    assert(perspective.z_near == 0.01);
+
+    ortho := cam_2.orthographic;
+    assert(ortho.x_mag == 1.0);
+    assert(ortho.y_mag == 1.0);
+    assert(ortho.z_far == 100);
+    assert(ortho.z_near == 0.01);
+  }
 }
