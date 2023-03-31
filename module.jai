@@ -1,9 +1,11 @@
 // @todo:
-// - glb binary
+// - Add proper test for glb files
 // - Flat_Pool system
+// - check all leaks
 
 GLTF_Data :: struct {
   filepath     : string;
+
   asset        : GLTF_Asset;
   scene        : int;
   scenes       : [..] GLTF_Scene;
@@ -19,15 +21,20 @@ GLTF_Data :: struct {
   materials    : [..] GLTF_Material;
   cameras      : [..] GLTF_Camera;
   lights       : [..] GLTF_Light;
+
+  using _meta  : struct { is_glb := false; };
 }
 
-
-gltf_parse_string :: (gltf_json_string: string) -> GLTF_Data {
+gltf_parse_string :: (gltf_buffer: string) -> GLTF_Data {
   data: GLTF_Data;
 
-  if gltf_json_string == "" then return data;
+  if gltf_buffer == "" then return data;
 
-  success, root := json_parse_string(gltf_json_string);
+  if is_glb(gltf_buffer) {
+    return parse_glb_string(gltf_buffer);
+  }
+
+  success, root := json_parse_string(gltf_buffer);
   defer json_free(root);
 
   if !success {
@@ -525,11 +532,16 @@ gltf_free :: (gltf_data: *GLTF_Data) {
 }
 
 gltf_parse_file :: (gltf_filepath: string) -> GLTF_Data {
+  path, basename, extension := path_decomp(gltf_filepath);
+
   gltf_string := read_entire_file(gltf_filepath);
   defer free(gltf_string);
 
-  gltf_data := gltf_parse_string(gltf_string);
-  gltf_data.filepath = gltf_filepath;
+  gltf_data := ifx extension == "glb"
+               then parse_glb_string(gltf_string)
+               else gltf_parse_string(gltf_string);
+
+  gltf_data.filepath = copy_string(gltf_filepath);
 
   return gltf_data;
 }
@@ -541,9 +553,10 @@ gltf_load_buffers :: (gltf_data: *GLTF_Data) -> bool {
   success := true;
 
   for * buffer: gltf_data.buffers {
-    bin_path      := join(folder_path, buffer.uri); // @leak
-    data, success := read_entire_file(bin_path);
+    bin_path := join(folder_path, buffer.uri);
+    defer free(bin_path.data);
 
+    data, success := read_entire_file(bin_path);
     if !success then success = false;
 
     buffer.data = data;
@@ -1167,6 +1180,106 @@ get_world_transform :: (gltf_data: *GLTF_Data, node: GLTF_Node) -> Matrix4 {
   return node_transform;
 }
 
+is_glb :: (buffer: string) -> bool {
+  GLB_MAGIC_NUMBER : u32 : 0x46546C67; // 'gltf' in ASCII.
+
+  fields := cast(*u32) buffer.data;
+  return fields[0] == GLB_MAGIC_NUMBER;
+}
+
+// Documentation to parse gltf binaries: 
+// https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#binary-gltf-layout
+parse_glb_string :: (glb_buffer: string) -> GLTF_Data {
+  GLB_CHUNK_TYPE_JSON : u32 : 0x4E4F534A; // 'JSON' in ASCII.
+  GLB_CHUNK_TYPE_BIN  : u32 : 0x004E4942; // 'BIN' in ASCII.
+
+  fields := cast(*u32) glb_buffer.data;
+
+  // The 12-byte header consists of three 4-byte entries:
+  magic   := fields[0];
+  version := fields[1];
+  length  := fields[2];
+
+  if !is_glb(glb_buffer) {
+    log_error("First 4-byte are not equal to magic number.");
+    exit(-1);
+  }
+
+  if version != 2 {
+    log_error("Only glTF spec v2 is supported.");
+    exit(-1);
+  }
+
+  /* 
+     
+      After having parsed the header, we get two chunk (in this order):
+        - JSON data
+        - Binary data
+  
+      Each chunk has the same following structure:
+        - chunk length (u32)
+        - chunk type (u32)
+        - chunk data (array of data)
+
+  */
+
+  json_string : string;
+  bin_string  : string;
+
+
+  // We first parse the JSON data:
+
+  if fields[4] != GLB_CHUNK_TYPE_JSON {
+    log_error("First chunk must be JSON data.");
+    exit(-1);
+  }
+
+  json_length := fields[3];
+  json_offset := 5 * size_of(u32);
+  
+  json_string.data  = glb_buffer.data + json_offset;
+  json_string.count = json_length;
+
+
+  // Now, we parse the BIN data:
+
+  bin_chunk  := cast(*u32) (json_string.data + json_string.count);
+
+  if bin_chunk[1] != GLB_CHUNK_TYPE_BIN {
+    log_error("Second chunk must be BIN data.");
+    exit(-1);
+  }
+
+  bin_length       := bin_chunk[0];
+  bin_string.data  = json_string.data + json_string.count + (3 * size_of(u32));
+  bin_string.count = bin_length;
+
+
+
+  // Parse the data:
+
+  gltf_data := gltf_parse_string(json_string);
+  gltf_data._meta.is_glb = true;
+
+  assert(gltf_data.buffers.count == 1); // Only 1 buffer.
+
+  buffer_data := copy_string(bin_string);
+  gltf_data.buffers[0].data = buffer_data;
+
+  for * image: gltf_data.images {
+    if image.buffer_view == -1 then continue;
+
+    buffer_view := gltf_data.buffer_views[image.buffer_view];
+
+    image_data : string;
+    image_data.data  = buffer_data.data + buffer_view.byte_offset;
+    image_data.count = buffer_view.byte_length;
+    image.data = image_data;
+  }
+
+  return gltf_data;
+}
+
 parse_texture_info :: (value: JSON_Value, key: string) -> GLTF_Texture_Info, bool {
   texture_info: GLTF_Texture_Info;
 
@@ -1263,6 +1376,8 @@ get :: (json_val     : JSON_Value,
 // @todo: move this to build.jai (and rename build.jai to example.jai).
 #scope_module
 
+#run tests();
+
 tests :: () {
   #import "File";
 
@@ -1272,8 +1387,6 @@ tests :: () {
     defer gltf_free(*data);
 
     gltf_load_buffers(*data);
-
-    log("Gltf_Data :: %", data);
 
     assert(data.asset.generator == "COLLADA2GLTF");
     assert(data.asset.version == "2.0");
@@ -1292,8 +1405,6 @@ tests :: () {
   {
     data := gltf_parse_file("./test-samples/cameras/Cameras.gltf");
     defer gltf_free(*data);
-
-    log("Gltf_Data :: %", data);
 
     assert(data.cameras.count == 2);
 
@@ -1321,8 +1432,6 @@ tests :: () {
     data := gltf_parse_file("./test-samples/khr_lights_punctual/Lights.gltf");
     defer gltf_free(*data);
 
-    log("Gltf_Data :: %", data);
-
     assert(data.lights.count == 3);
 
     assert(data.lights[0].type == .POINT);
@@ -1337,5 +1446,15 @@ tests :: () {
 
     assert(data.nodes[0].light == 0);
     assert(data.nodes[2].light == 1);
+  }
+
+  // Verify if glb files works!
+  {
+    data := gltf_parse_file("./test-samples/box_binary/Box.glb");
+    defer gltf_free(*data);
+
+    log("Gltf_Data :: %", data);
+
+    assert(data._meta.is_glb == true);
   }
 }

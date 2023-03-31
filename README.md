@@ -26,7 +26,7 @@ main :: () {
 
 ## General Interfaces
 
-- `gltf_parse_string  :: (gltf_json: string) -> GLTF_Data`
+- `gltf_parse_string  :: (buffer: string) -> GLTF_Data`
 - `gltf_parse_file    :: (gltf_filepath: string) -> GLTF_Data`
 - `gltf_free          :: (gltf_data: *GLTF_Data)`
 
@@ -56,7 +56,7 @@ the **size, count and stride** of a specified accessor.
 - [x] Animations
 - [x] Skins
 - [x] Cameras
-- [ ] Parse `glb` files
+- [x] Parse `glb` files
 - [ ] Morth targets
 - [ ] Extras data
 
