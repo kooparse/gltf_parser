@@ -1,5 +1,6 @@
 // @todo:
-// - Extentions
+// - glb binary
+// - Flat_Pool system
 
 GLTF_Data :: struct {
   filepath     : string;
@@ -392,9 +393,36 @@ gltf_parse_string :: (gltf_json_string: string) -> GLTF_Data {
     is_double_sided := get(material_parsed, "doubleSided", .BOOLEAN);
     material.is_double_sided = is_double_sided.boolean;
 
-    // @todo: Make khr_materials_emissive_strength extension.
-    // @todo: Make khr_materials_ior extension.
-    // @todo: Make khr_materials_transmission extension.
+
+    //
+    // Extensions
+    //
+
+    extensions, has_extension := get(material_parsed, "extensions", .OBJECT);
+
+    if has_extension {
+      // Parse khr_materials_emissive_strength extension.
+      khr_emissive_strength, has_emissive_str := get(extensions, "KHR_materials_emissive_strength", .OBJECT);
+
+      if has_emissive_str {
+        material.emissive_strength = get_float(khr_emissive_strength, "emissiveStrength");
+      }
+
+      // Parse khr_materials_ior extension.
+      khr_ior, has_ior := get(extensions, "KHR_materials_ior", .OBJECT);
+      if has_ior then material.ior = get_float(khr_ior, "ior");
+
+      // Parse khr_materials_transmission extension.
+      khr_transmission, has_transmission := get(extensions, "KHR_materials_transmission", .OBJECT);
+      if has_transmission {
+        material.transmission_factor = get_float(khr_transmission, "transmissionFactor");
+        transmission_texture, has_transmission_texture := parse_texture_info(khr_transmission, "transmissionTexture");
+        if has_transmission_texture {
+          material.has_transmission = true;
+          material.transmission_texture = transmission_texture;
+        }
+      }
+    }
   }
 
 
