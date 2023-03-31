@@ -1,5 +1,7 @@
 # glTF parser for Jai codebase
 
+Note: **Jai beta 0.1.059 is required.**
+
 This project is a glTF 2.0 parser written in Jai, aiming to replace the use of some C/C++ libraries. All glTF types are fully documented, so it comes nicely with IDE autocompletion, reducing
 back and forth with the [specification](https://www.khronos.org/registry/glTF/specs/2.0/glTF-2.0.html).
 
@@ -27,9 +29,8 @@ main :: () {
 - `gltf_parse_file    :: (gltf_filepath: string) -> GLTF_Data`
 - `gltf_parse_string  :: (gltf_json: string) -> GLTF_Data`
 - `gltf_load_buffers  :: (gltf_data: *GLTF_Data)`
+- `get_component_info :: (gltf_accessor: GLTF_Acessor) -> GLTF_Component_Info`
 - `gltf_free          :: (gltf_data: *GLTF_Data)`
-
-Note: **Jai beta 0.1.059 is required.**
 
 ## Features
 

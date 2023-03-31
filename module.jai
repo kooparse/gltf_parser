@@ -20,59 +20,6 @@ GLTF_Data :: struct {
   materials    : [..] GLTF_Material;
 }
 
-// @todo: would like to remove everything all at once, thanks 
-// to Flat_Pool or something.
-gltf_free :: (gltf_data: *GLTF_Data) {
-  // fini(*gltf_data._pool);
-}
-
-gltf_parse_file :: (gltf_filepath: string) -> GLTF_Data {
-  gltf_string := read_entire_file(gltf_filepath);
-  defer free(gltf_string);
-
-  gltf_data := gltf_parse_string(gltf_string);
-  gltf_data.filepath = gltf_filepath;
-
-  return gltf_data;
-}
-
-gltf_load_buffers :: (gltf_data: *GLTF_Data) -> bool {
-  folder_path := gltf_data.filepath;
-  folder_path.count = find_index_from_right(gltf_data.filepath, #char "/") + 1;
-
-  success := true;
-
-  for * buffer: gltf_data.buffers {
-    bin_path      := join(folder_path, buffer.uri); // @leak
-    data, success := read_entire_file(bin_path);
-
-    if !success then success = false;
-
-    buffer.data = data;
-  }
-
-  return success;
-}
-
-get_component_count :: (type: GLTF_Accessor_Type) -> int {
-  if type == {
-    case .VEC2;
-      return 2;
-    case .VEC3;
-      return 3;
-    case .VEC4;
-      return 4;
-    case .MAT2;
-      return 4;
-    case .MAT3;
-      return 9;
-    case .MAT4;
-      return 16;
-    case .SCALAR; #through;
-    case;
-      return 1;
-  }
-}
 
 gltf_parse_string :: (gltf_json_string: string) -> GLTF_Data {
   data: GLTF_Data;
@@ -224,25 +171,7 @@ gltf_parse_string :: (gltf_json_string: string) -> GLTF_Data {
       }
     } 
 
-    size := 0;
-    if #complete accessor.component_type == {
-      case .BYTE;             size = size_of(s8);
-      case .UNSIGNED_BYTE;    size = size_of(u8);
-      case .SHORT;            size = size_of(s16);
-      case .UNSIGNED_SHORT;   size = size_of(u16);
-      case .UNSIGNED_INTEGER; size = size_of(u32);
-      case .FLOAT;            size = size_of(float);
-    }
-
-    if #complete accessor.type == {
-      case .SCALAR; accessor.stride = size;
-      case .VEC2;   accessor.stride = 2 * size;
-      case .VEC3;   accessor.stride = 3 * size;
-      case .VEC4;   accessor.stride = 4 * size;
-      case .MAT2;   accessor.stride = 4 * size;
-      case .MAT3;   accessor.stride = 9 * size;
-      case .MAT4;   accessor.stride = 16 * size;
-    };
+    accessor.stride = get_component_info(accessor).stride;
   }
 
 
@@ -471,13 +400,90 @@ gltf_parse_string :: (gltf_json_string: string) -> GLTF_Data {
   return data;
 }
 
+// @todo: would like to remove everything all at once, thanks 
+// to Flat_Pool or something.
+gltf_free :: (gltf_data: *GLTF_Data) {
+  // fini(*gltf_data._pool);
+}
+
+gltf_parse_file :: (gltf_filepath: string) -> GLTF_Data {
+  gltf_string := read_entire_file(gltf_filepath);
+  defer free(gltf_string);
+
+  gltf_data := gltf_parse_string(gltf_string);
+  gltf_data.filepath = gltf_filepath;
+
+  return gltf_data;
+}
+
+gltf_load_buffers :: (gltf_data: *GLTF_Data) -> bool {
+  folder_path := gltf_data.filepath;
+  folder_path.count = find_index_from_right(gltf_data.filepath, #char "/") + 1;
+
+  success := true;
+
+  for * buffer: gltf_data.buffers {
+    bin_path      := join(folder_path, buffer.uri); // @leak
+    data, success := read_entire_file(bin_path);
+
+    if !success then success = false;
+
+    buffer.data = data;
+  }
+
+  return success;
+}
+
+
+GLTF_Component_Info :: struct {
+  size   : int; // Component's size in bytes.
+  count  : int; // Number of component.
+  stride : int; // Computed count * size.
+}
+
+get_component_info :: (accessor: GLTF_Accessor) -> GLTF_Component_Info {
+  info : GLTF_Component_Info;
+
+  if #complete accessor.component_type == {
+    case .BYTE;             info.size = size_of(s8);
+    case .UNSIGNED_BYTE;    info.size = size_of(u8);
+    case .SHORT;            info.size = size_of(s16);
+    case .UNSIGNED_SHORT;   info.size = size_of(u16);
+    case .UNSIGNED_INTEGER; info.size = size_of(u32);
+    case .FLOAT;            info.size = size_of(float);
+  }
+
+  if #complete accessor.type == {
+    case .VEC2;   
+      info.count = 2;
+      info.stride = 2 * info.size;
+    case .VEC3;   
+      info.count = 3;
+      info.stride = 3 * info.size;
+    case .VEC4; #through;
+    case .MAT2;
+      info.count = 4;
+      info.stride = 4 * info.size;
+    case .MAT3;   
+      info.count = 9;
+      info.stride = 9 * info.size;
+    case .MAT4;   
+      info.count = 16;
+      info.stride = 16 * info.size;
+    case .SCALAR; 
+      info.count = 1;
+      info.stride = info.size;
+  }
+
+  return info;
+}
 
 
 
 
 /*
  *
- * All glTF types are written here!
+ * All glTF types are here!
  * Types are fully documented, mostly copy/pasted from the glTF specs.
  * @Note: https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html
  *
