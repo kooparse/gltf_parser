@@ -1400,6 +1400,23 @@ tests :: () {
     assert(data.buffers.count == 1);
   }
 
+  // Try if rigged stuff works!
+  {
+    data := gltf_parse_file("./test-samples/rigged_simple/RiggedSimple.gltf");
+    defer gltf_free(*data);
+
+    gltf_load_buffers(*data);
+
+    assert(data.asset.generator == "COLLADA2GLTF");
+    assert(data.asset.version == "2.0");
+
+    assert(data.nodes[0].name == "Z_UP");
+    assert(data.nodes[2].name == "Cylinder");
+    assert(data.nodes[2].skin != -1);
+    assert(data.skins.count == 1);
+    assert(data.skins[0].name == "Armature");
+  }
+
   // Check if we correctly get cameras.
   {
     data := gltf_parse_file("./test-samples/cameras/Cameras.gltf");
