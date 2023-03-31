@@ -1,5 +1,4 @@
 // @todo:
-// - Add proper test for glb files
 // - Flat_Pool system
 // - check all leaks
 
@@ -22,7 +21,7 @@ GLTF_Data :: struct {
   cameras      : [..] GLTF_Camera;
   lights       : [..] GLTF_Light;
 
-  using _meta  : struct { is_glb := false; };
+  is_glb       := false;
 }
 
 gltf_parse_string :: (gltf_buffer: string) -> GLTF_Data {
@@ -547,6 +546,8 @@ gltf_parse_file :: (gltf_filepath: string) -> GLTF_Data {
 }
 
 gltf_load_buffers :: (gltf_data: *GLTF_Data) -> bool {
+  if gltf_data.is_glb return true;
+
   folder_path := gltf_data.filepath;
   folder_path.count = find_index_from_right(gltf_data.filepath, #char "/") + 1;
 
@@ -1251,7 +1252,7 @@ parse_glb_string :: (glb_buffer: string) -> GLTF_Data {
   }
 
   bin_length       := bin_chunk[0];
-  bin_string.data  = json_string.data + json_string.count + (3 * size_of(u32));
+  bin_string.data  = json_string.data + json_string.count + (2 * size_of(u32));
   bin_string.count = bin_length;
 
 
@@ -1259,7 +1260,7 @@ parse_glb_string :: (glb_buffer: string) -> GLTF_Data {
   // Parse the data:
 
   gltf_data := gltf_parse_string(json_string);
-  gltf_data._meta.is_glb = true;
+  gltf_data.is_glb = true;
 
   assert(gltf_data.buffers.count == 1); // Only 1 buffer.
 
@@ -1376,8 +1377,6 @@ get :: (json_val     : JSON_Value,
 // @todo: move this to build.jai (and rename build.jai to example.jai).
 #scope_module
 
-#run tests();
-
 tests :: () {
   #import "File";
 
@@ -1448,13 +1447,81 @@ tests :: () {
     assert(data.nodes[2].light == 1);
   }
 
-  // Verify if glb files works!
+  // Verify if GLB textured data works!
   {
-    data := gltf_parse_file("./test-samples/box_binary/Box.glb");
-    defer gltf_free(*data);
+    gltf_data := gltf_parse_file("./test-samples/box_binary_textured/BoxTextured.glb");
+    defer gltf_free(*gltf_data);
 
-    log("Gltf_Data :: %", data);
+    texture_data := read_entire_file("./test-samples/box_binary_textured/test.png");
+    defer free(texture_data);
 
-    assert(data._meta.is_glb == true);
+    image_data := gltf_data.images[0].data;
+    assert(image_data != "");
+    assert(image_data == texture_data);
   }
+
+  // Verify if GLB data works!
+  {
+    gltf_data := gltf_parse_file("./test-samples/box_binary/Box.glb");
+    defer gltf_free(*gltf_data);
+
+    // Useless, but we want to try if no crash happens.
+    gltf_load_buffers(*gltf_data); 
+
+    vertices : [..] float;
+    mesh     := gltf_data.meshes[0];
+
+    for primitive: mesh.primitives {
+      using primitive;
+
+      if position_accessor != -1 {
+        accessor := gltf_data.accessors[position_accessor];
+        read_buffer_from_accessor(*gltf_data, accessor, *vertices, float);
+      }
+    }
+
+    expected_vertices := float.[
+      -0.50, -0.50, 0.50, 0.50, -0.50, 0.50, -0.50, 0.50, 0.50,
+      0.50, 0.50, 0.50, 0.50, -0.50, 0.50, -0.50, -0.50, 0.50, 
+      0.50, -0.50, -0.50, -0.50, -0.50, -0.50, 0.50, 0.50, 0.50, 
+      0.50, -0.50, 0.50, 0.50, 0.50, -0.50, 0.50, -0.50, -0.50, 
+      -0.50, 0.50, 0.50, 0.50, 0.50, 0.50, -0.50, 0.50, -0.50, 
+      0.50, 0.50, -0.50, -0.50, -0.50, 0.50, -0.50, 0.50, 0.50, 
+      -0.50, -0.50, -0.50, -0.50, 0.50, -0.50, -0.50, -0.50, -0.50, 
+      -0.50, 0.50, -0.50, 0.50, -0.50, -0.50, 0.50, 0.50, -0.50,
+    ];
+
+    read_buffer_from_accessor :: (gltf_data: *GLTF_Data, accessor: GLTF_Accessor,
+                                  list: *[..] $T, $type: Type) {
+
+      buffer_view := gltf_data.buffer_views[accessor.buffer_view];
+      buffer      := gltf_data.buffers[buffer_view.buffer];
+
+      component_size  := size_of(type);
+      component_count := get_component_info(accessor).count;
+      stride          := accessor.stride / component_size;
+
+      offset := (buffer_view.byte_offset + accessor.byte_offset) / component_size;
+
+      index := 0;
+      while index < accessor.count {
+        buffer_data := cast(*type) buffer.data.data;
+        data        := (buffer_data + offset + index * stride);
+
+        component_index := 0;
+        while component_index < component_count {
+          array_add(list, data[component_index]);
+          component_index += 1;
+        }
+
+        index += 1;
+      }
+    }
+
+    assert(vertices.count == 72);
+    for vertices assert(it == expected_vertices[it_index]);
+  }
+
+  log("All good!");
 }
+
