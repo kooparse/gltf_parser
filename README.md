@@ -18,7 +18,7 @@ If you would like to contribute, don't hesitate! :)
 #import "gltf_parser";
 
 main :: () {
-  data := gltf_parse_string("gltf_json_data");
+  data := gltf_parse_file("./path-to-gltf-or-glb-file");
   defer gltf_free(*data);
 }
 
