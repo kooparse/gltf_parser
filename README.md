@@ -62,7 +62,7 @@ the **size, count and stride** of a specified accessor.
 
 Also, we supports some glTF extensions:
 
-- [ ] khr_lights_punctual
+- [x] khr_lights_punctual
 - [ ] khr_materials_emissive_strength
 - [ ] khr_materials_ior
 - [ ] khr_materials_transmission

@@ -1,5 +1,5 @@
 // @todo:
-// - extentions...
+// - Extentions
 
 GLTF_Data :: struct {
   filepath     : string;
@@ -17,6 +17,7 @@ GLTF_Data :: struct {
   samplers     : [..] GLTF_Sampler;
   materials    : [..] GLTF_Material;
   cameras      : [..] GLTF_Camera;
+  lights       : [..] GLTF_Light;
 }
 
 
@@ -87,6 +88,12 @@ gltf_parse_string :: (gltf_json_string: string) -> GLTF_Data {
     children, has_children := get_array(node_parsed, "children");
     if has_children {
       for val: children array_add(*node.children, parse_int(val)); 
+    }
+
+    extensions, has_extension := get(node_parsed, "extensions", .OBJECT);
+    if has_extension {
+      khr_lights, has_khr_l := get(extensions, "KHR_lights_punctual", .OBJECT);
+      if has_khr_l then node.light = get_int(khr_lights, "light", -1);
     }
   }
 
@@ -398,7 +405,7 @@ gltf_parse_string :: (gltf_json_string: string) -> GLTF_Data {
 
   cameras := get_array(root, "cameras");
   for camera_parsed: cameras {
-    camera: GLTF_Camera;
+    camera := GLTF_Camera.{ name = get_string(camera_parsed, "name") };
     defer array_add(*data.cameras, camera);
 
     type := get_string(camera_parsed, "type");
@@ -424,6 +431,46 @@ gltf_parse_string :: (gltf_json_string: string) -> GLTF_Data {
         };
     }
   }
+
+
+
+  //
+  // khr_lights_punctual.
+  //
+
+  extensions, has_extensions := get(root, "extensions", .OBJECT);
+  if has_extensions {
+    khr_lights, has_khr_l := get(extensions, "KHR_lights_punctual", .OBJECT);
+
+    if has_khr_l {
+      lights := get_array(khr_lights, "lights");
+
+      for light_parsed: lights {
+        light := GLTF_Light.{ name = get_string(light_parsed, "name") };
+        defer array_add(*data.lights, light);
+
+        color := get_array(light_parsed, "color");
+        for color light.color[it_index] = parse_float(it);
+
+        light.intensity = get_float(light_parsed, "intensity");
+        light.range     = get_float(light_parsed, "range");
+
+        if get_string(light_parsed, "type") == {
+          case "directional";
+            light.type = .DIRECTIONAL;
+          case "point";
+            light.type = .POINT;
+          case "spot";
+            light.type = .SPOT;
+            spot := get(light_parsed, "spot", .OBJECT);
+            light.spot.inner_cone_angle = get_float(spot, "innerConeAngle");
+            light.spot.outer_cone_angle = get_float(spot, "outerConeAngle");
+        }
+      }
+    }
+  }
+
+  
 
 
   // Fill parents in nodes, to easily construct a hierarchy.
@@ -962,6 +1009,9 @@ GLTF_Asset :: struct {
 // A node may reference a camera to apply a transform to place the camera
 // in the scene.
 GLTF_Camera :: struct {
+  name : string;
+  type : enum { PERSPECTIVE; ORTHOGRAPHIC; };
+
   // A perspective camera containing properties to create a
   // perspective projection matrix.
   Perspective :: struct {
@@ -994,9 +1044,6 @@ GLTF_Camera :: struct {
     // The distance to the near clipping plane.
     z_near := 0.;
   }
-
-  name : string;
-  type : enum { PERSPECTIVE; ORTHOGRAPHIC; };
 
   union {
     perspective  : Perspective;
@@ -1032,16 +1079,15 @@ GLTF_Light_Type :: enum {
 // A directional, point or spot light.
 GLTF_Light :: struct {
   name : string;
+  // Specifies the light type.
+  type : GLTF_Light_Type;
   // Color of the light source.
   color := float.[1, 1, 1];
   // Intensity of the light source. `point` and `spot` lights use luminous intensity in candela (lm/sr)
   // while `directional` lights use illuminance in lux (lm/m^2).
   intensity := 1.;
-  // Specifies the light type.
-  type : GLTF_Light_Type;
   // When a light's type is spot, the spot property on the light is required.
-  has_spot := false;
-  spot     : GLTF_Light_Spot;
+  using spot : GLTF_Light_Spot;
   // A distance cutoff at which the light's intensity may be considered to have reached zero.
   range := 0.;
 }
@@ -1063,12 +1109,13 @@ fill_parents :: (data: *GLTF_Data, node: *GLTF_Node, parent_index: int) {
   }
 }
 
-// row-major
 get_local_transform :: (using node: GLTF_Node) -> Matrix4 {
   if has_matrix {
     transform : Matrix4 = ---;
     for matrix transform.floats[it_index] = it;
 
+    // Careful here, we transpose the matrix because glTF 
+    // store column-major matrices.
     return transpose(transform);
   }
 
@@ -1083,7 +1130,7 @@ get_world_transform :: (gltf_data: *GLTF_Data, node: GLTF_Node) -> Matrix4 {
   parent_index := node.parent;
   node_transform := node.local_transform;
 
-  while parent_index >= 0 {
+  while parent_index != -1 {
     parent := gltf_data.nodes[parent_index];
     node_transform = parent.local_transform * node_transform;
     parent_index = parent.parent;
@@ -1172,7 +1219,6 @@ get :: (json_val     : JSON_Value,
   return val, success;
 }
 
-// @todo: remove MEMORY_DEBUGGER.
 #import "Basic";
 #import "File";
 #import "String";
@@ -1214,7 +1260,7 @@ tests :: () {
     assert(data.buffers.count == 1);
   }
 
-  // Verify that we correctly get cameras.
+  // Check if we correctly get cameras.
   {
     data := gltf_parse_file("./test-samples/cameras/Cameras.gltf");
     defer gltf_free(*data);
@@ -1240,5 +1286,28 @@ tests :: () {
     assert(ortho.y_mag == 1.0);
     assert(ortho.z_far == 100);
     assert(ortho.z_near == 0.01);
+  }
+
+  // Verify if KHR_lights_punctual works.
+  {
+    data := gltf_parse_file("./test-samples/khr_lights_punctual/Lights.gltf");
+    defer gltf_free(*data);
+
+    log("Gltf_Data :: %", data);
+
+    assert(data.lights.count == 3);
+
+    assert(data.lights[0].type == .POINT);
+    assert(data.lights[1].type == .SPOT);
+    assert(data.lights[2].type == .DIRECTIONAL);
+
+    assert(data.lights[0].intensity == 1000);
+    for data.lights[0].color assert(it == 1);
+
+    assert(data.lights[1].spot.inner_cone_angle  == 0);
+    assert(data.lights[1].spot.outer_cone_angle  == 1);
+
+    assert(data.nodes[0].light == 0);
+    assert(data.nodes[2].light == 1);
   }
 }
