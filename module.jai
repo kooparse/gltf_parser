@@ -1,7 +1,3 @@
-// @todo:
-// - Flat_Pool system
-// - check all leaks
-
 GLTF_Data :: struct {
   filepath     : string;
 
@@ -21,11 +17,21 @@ GLTF_Data :: struct {
   cameras      : [..] GLTF_Camera;
   lights       : [..] GLTF_Light;
 
-  is_glb       := false;
+  using meta : struct { 
+    // Used to prevent loading buffers when it's a glb file
+    // because it's already loaded in memory.
+    is_glb : bool; 
+    // Holds all the memory for GLTF_Data.
+    pool   : Pool; 
+  };
 }
+
 
 gltf_parse_string :: (gltf_buffer: string) -> GLTF_Data {
   data: GLTF_Data;
+
+  set_allocators(*data.pool);
+  push_allocator(make_pool_allocator(*data.pool));
 
   if gltf_buffer == "" then return data;
 
@@ -40,6 +46,7 @@ gltf_parse_string :: (gltf_buffer: string) -> GLTF_Data {
     log_error("JSON parsing failed.");
     exit(-1);
   }
+
 
 
   //
@@ -524,23 +531,22 @@ gltf_parse_string :: (gltf_buffer: string) -> GLTF_Data {
   return data;
 }
 
-// @todo: would like to remove everything all at once, thanks 
-// to Flat_Pool or something.
-gltf_free :: (gltf_data: *GLTF_Data) {
-  // fini(*gltf_data._pool);
+gltf_free :: (using gltf_data: *GLTF_Data) {
+  release(*pool);
 }
 
-gltf_parse_file :: (gltf_filepath: string) -> GLTF_Data {
-  path, basename, extension := path_decomp(gltf_filepath);
+gltf_parse_file :: (filepath: string) -> GLTF_Data {
+  path, basename, extension := path_decomp(filepath);
 
-  gltf_string := read_entire_file(gltf_filepath);
+  gltf_string := read_entire_file(filepath);
   defer free(gltf_string);
 
   gltf_data := ifx extension == "glb"
                then parse_glb_string(gltf_string)
                else gltf_parse_string(gltf_string);
 
-  gltf_data.filepath = copy_string(gltf_filepath);
+  pool_allocator     := make_pool_allocator(*gltf_data.pool);
+  gltf_data.filepath = copy_string(filepath, allocator=pool_allocator);
 
   return gltf_data;
 }
@@ -555,7 +561,10 @@ gltf_load_buffers :: (gltf_data: *GLTF_Data) -> bool {
 
   for * buffer: gltf_data.buffers {
     bin_path := join(folder_path, buffer.uri);
-    defer free(bin_path.data);
+    defer free(bin_path);
+
+    pool_allocator := make_pool_allocator(*gltf_data.pool);
+    push_allocator(pool_allocator);
 
     data, success := read_entire_file(bin_path);
     if !success then success = false;
@@ -1188,7 +1197,7 @@ is_glb :: (buffer: string) -> bool {
   return fields[0] == GLB_MAGIC_NUMBER;
 }
 
-// Documentation to parse gltf binaries: 
+// Documentation for parsing glTF binaries: 
 // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#binary-gltf-layout
 parse_glb_string :: (glb_buffer: string) -> GLTF_Data {
   GLB_CHUNK_TYPE_JSON : u32 : 0x4E4F534A; // 'JSON' in ASCII.
@@ -1264,7 +1273,8 @@ parse_glb_string :: (glb_buffer: string) -> GLTF_Data {
 
   assert(gltf_data.buffers.count == 1); // Only 1 buffer.
 
-  buffer_data := copy_string(bin_string);
+  pool_allocator := make_pool_allocator(*gltf_data.pool);
+  buffer_data    := copy_string(bin_string, pool_allocator);
   gltf_data.buffers[0].data = buffer_data;
 
   for * image: gltf_data.images {
@@ -1361,11 +1371,16 @@ get :: (json_val     : JSON_Value,
   return val, success;
 }
 
-#import "Basic";
+make_pool_allocator :: (data: *void) -> Allocator {
+  return Allocator.{ proc = pool_allocator_proc, data = data };
+}
+
+#import "Basic"()(MEMORY_DEBUGGER=true);
 #import "File";
 #import "String";
 #import "Hash_Table";
 #import "Flat_Pool";
+#import "Pool";
 #import "jason";
 #import "unicode_utils";
 // #import, dir "./modules/jason";
@@ -1379,6 +1394,17 @@ get :: (json_val     : JSON_Value,
 
 tests :: () {
   #import "File";
+
+  // Check leaks.
+  {
+    data := gltf_parse_file("./test-samples/box/Box.gltf");
+    gltf_load_buffers(*data);
+
+    gltf_free(*data);
+
+    report := make_leak_report();
+    log_leak_report(report);
+  }
 
   // A simple test 
   {
@@ -1541,4 +1567,3 @@ tests :: () {
 
   log("All good!");
 }
-
