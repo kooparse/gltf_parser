@@ -13,6 +13,8 @@ If you would like to contribute, don't hesitate! :)
 
 ## Examples
 
+You just need to import `module.jai` in your project, also this library has two dependencies: `jason` and `unicode_utils`; so those two modules needs to be found somewhere.
+
 ```jai
 
 #import "gltf_parser";
@@ -66,6 +68,10 @@ Also, we supports some glTF extensions:
 - [x] khr_materials_emissive_strength
 - [x] khr_materials_ior
 - [x] khr_materials_transmission
+
+## Thanks
+
+This library is using Raphael Luba's `jason` module to parse JSON strings, so thanks to him! :)
 
 ## Contributing to the project
 
