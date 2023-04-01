@@ -1,25 +1,188 @@
+#import "Basic"()(MEMORY_DEBUGGER=true);
 #import "File";
 #import "Compiler";
-#import "Basic";
+
+#import, file "module.jai";
 
 #run {
-  options := get_build_options();
-
-  make_directory_if_it_does_not_exist("example/");
-
-	import_path: [..] string;
-  array_add(*import_path, .. options.import_path);
-  array_add(*import_path, "./modules");
-
-  options.import_path            = import_path;
-  options.optimization_level     = .DEBUG;
-  options.output_path            = "example";
-  options.output_executable_name = "example";
-  options.entry_point_name       = "tests";
-
-  ws := compiler_create_workspace("Tests");
-  set_build_options(options, ws);
-  add_build_file("module.jai", ws);
-
+  main();
   set_build_options_dc(.{ do_output = false });
+}
+
+main :: () {
+  check_leaks();
+
+  simple_tests();
+  rigged_tests();
+  camera_tests();
+  khr_lights_punctual_tests();
+  glb_file_tests();
+  data_read_tests();
+
+  print("\n");
+  log("All tests and examples were executed without errors!");
+  print("\n");
+}
+
+check_leaks :: () {
+  data := gltf_parse_file("./test-samples/box/Box.gltf");
+  gltf_load_buffers(*data);
+
+  gltf_free(*data);
+
+  report := make_leak_report();
+  log_leak_report(report);
+}
+
+simple_tests :: () {
+  data := gltf_parse_file("./test-samples/box/Box.gltf");
+  defer gltf_free(*data);
+
+  gltf_load_buffers(*data);
+
+  assert(data.asset.generator == "COLLADA2GLTF");
+  assert(data.asset.version == "2.0");
+  assert(data.scene == 0);
+  assert(data.scenes.count == 1);
+  assert(data.nodes.count == 2);
+  assert(data.meshes.count == 1);
+  assert(data.cameras.count == 0);
+  assert(data.accessors.count == 3);
+  assert(data.materials.count == 1);
+  assert(data.buffer_views.count == 2);
+  assert(data.buffers.count == 1);
+}
+
+rigged_tests :: () {
+  data := gltf_parse_file("./test-samples/rigged_simple/RiggedSimple.gltf");
+  defer gltf_free(*data);
+
+  gltf_load_buffers(*data);
+
+  assert(data.asset.generator == "COLLADA2GLTF");
+  assert(data.asset.version == "2.0");
+
+  assert(data.nodes[0].name == "Z_UP");
+  assert(data.nodes[2].name == "Cylinder");
+  assert(data.nodes[2].skin != -1);
+  assert(data.skins.count == 1);
+  assert(data.skins[0].name == "Armature");
+}
+
+camera_tests :: () {
+  data := gltf_parse_file("./test-samples/cameras/Cameras.gltf");
+  defer gltf_free(*data);
+
+  assert(data.cameras.count == 2);
+
+  cam_1 := data.cameras[0];
+  cam_2 := data.cameras[1];
+
+  assert(cam_1.type == .PERSPECTIVE);
+  assert(cam_2.type == .ORTHOGRAPHIC);
+
+  perspective := cam_1.perspective;
+  assert(perspective.aspect_ratio == 1.0);
+  assert(perspective.y_fov == .7);
+  assert(perspective.z_far == 100);
+  assert(perspective.z_near == 0.01);
+
+  ortho := cam_2.orthographic;
+  assert(ortho.x_mag == 1.0);
+  assert(ortho.y_mag == 1.0);
+  assert(ortho.z_far == 100);
+  assert(ortho.z_near == 0.01);
+}
+
+khr_lights_punctual_tests :: () {
+  data := gltf_parse_file("./test-samples/khr_lights_punctual/Lights.gltf");
+  defer gltf_free(*data);
+
+  assert(data.lights.count == 3);
+
+  assert(data.lights[0].type == .POINT);
+  assert(data.lights[1].type == .SPOT);
+  assert(data.lights[2].type == .DIRECTIONAL);
+
+  assert(data.lights[0].intensity == 1000);
+  for data.lights[0].color assert(it == 1);
+
+  assert(data.lights[1].spot.inner_cone_angle  == 0);
+  assert(data.lights[1].spot.outer_cone_angle  == 1);
+
+  assert(data.nodes[0].light == 0);
+  assert(data.nodes[2].light == 1);
+}
+
+glb_file_tests :: () {
+  gltf_data := gltf_parse_file("./test-samples/box_binary_textured/BoxTextured.glb");
+  defer gltf_free(*gltf_data);
+
+  texture_data := read_entire_file("./test-samples/box_binary_textured/test.png");
+  defer free(texture_data);
+
+  image_data := gltf_data.images[0].data;
+  assert(image_data != "");
+  assert(image_data == texture_data);
+}
+
+data_read_tests :: () {
+  gltf_data := gltf_parse_file("./test-samples/box_binary/Box.glb");
+  defer gltf_free(*gltf_data);
+
+  // Useless, but we want to try if no crash happens.
+  gltf_load_buffers(*gltf_data); 
+
+  vertices : [..] float;
+  mesh     := gltf_data.meshes[0];
+
+  for primitive: mesh.primitives {
+    using primitive;
+
+    if position_accessor != -1 {
+      accessor := gltf_data.accessors[position_accessor];
+      read_buffer_from_accessor(*gltf_data, accessor, *vertices, float);
+    }
+  }
+
+  expected_vertices := float.[
+    -0.50, -0.50, 0.50, 0.50, -0.50, 0.50, -0.50, 0.50, 0.50,
+    0.50, 0.50, 0.50, 0.50, -0.50, 0.50, -0.50, -0.50, 0.50, 
+    0.50, -0.50, -0.50, -0.50, -0.50, -0.50, 0.50, 0.50, 0.50, 
+    0.50, -0.50, 0.50, 0.50, 0.50, -0.50, 0.50, -0.50, -0.50, 
+    -0.50, 0.50, 0.50, 0.50, 0.50, 0.50, -0.50, 0.50, -0.50, 
+    0.50, 0.50, -0.50, -0.50, -0.50, 0.50, -0.50, 0.50, 0.50, 
+    -0.50, -0.50, -0.50, -0.50, 0.50, -0.50, -0.50, -0.50, -0.50, 
+    -0.50, 0.50, -0.50, 0.50, -0.50, -0.50, 0.50, 0.50, -0.50,
+  ];
+
+  read_buffer_from_accessor :: (gltf_data: *GLTF_Data, accessor: GLTF_Accessor,
+                                list: *[..] $T, $type: Type) {
+
+    buffer_view := gltf_data.buffer_views[accessor.buffer_view];
+    buffer      := gltf_data.buffers[buffer_view.buffer];
+
+    component_size  := size_of(type);
+    component_count := get_component_info(accessor).count;
+    stride          := accessor.stride / component_size;
+
+    offset := (buffer_view.byte_offset + accessor.byte_offset) / component_size;
+
+    index := 0;
+    while index < accessor.count {
+      buffer_data := cast(*type) buffer.data.data;
+      data        := (buffer_data + offset + index * stride);
+
+      component_index := 0;
+      while component_index < component_count {
+        array_add(list, data[component_index]);
+        component_index += 1;
+      }
+
+      index += 1;
+    }
+  }
+
+  assert(vertices.count == 72);
+  for vertices assert(it == expected_vertices[it_index]);
 }

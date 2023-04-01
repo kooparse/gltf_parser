@@ -22,9 +22,13 @@ You just need to import `module.jai` in your project, also this library has two 
 main :: () {
   data := gltf_parse_file("./path-to-gltf-or-glb-file");
   defer gltf_free(*data);
+
+  gltf_load_buffers(*data);
 }
 
 ```
+
+All examples could be found in `example.jai`. Also, if you want to run the tests and examples, run `jai example.jai -import_dir ./modules`.
 
 ## General Interfaces
 
