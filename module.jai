@@ -16,6 +16,7 @@ GLTF_Data :: struct {
   materials    : [..] GLTF_Material;
   cameras      : [..] GLTF_Camera;
   lights       : [..] GLTF_Light;
+  animations   : [..] GLTF_Animation;
 
   using meta : struct { 
     // Used to prevent loading buffers when it's a glb file
@@ -327,6 +328,60 @@ gltf_parse_string :: (gltf_buffer: string) -> GLTF_Data {
     min_filter, has_min := get(sampler_parsed, "minFilter", .NUMBER);
     if has_min {
       sampler.min_filter = cast(GLTF_Min_Filter) parse_int(min_filter);
+    }
+  }
+
+
+
+  //
+  // animations.
+  //
+
+  animations := get_array(root, "animations");
+  for animation_sampler: animations {
+    animation: GLTF_Animation;
+    defer array_add(*data.animations, animation);
+
+    animation.name = get_string(animation_sampler, "name");
+
+    samplers := get_array(animation_sampler, "samplers");
+    for sampler_parsed: samplers {
+      animation_sampler: GLTF_Animation_Sampler;
+      defer array_add(*animation.samplers, animation_sampler);
+
+      animation_sampler.input  = get_int(sampler_parsed, "input", -1);
+      animation_sampler.output = get_int(sampler_parsed, "output", -1);
+
+      if get_string(sampler_parsed, "interpolation") == {
+        case "LINEAR";
+          animation_sampler.interpolation = .LINEAR;
+        case "STEP";
+          animation_sampler.interpolation = .STEP;
+        case "CUBICSPLINE";
+          animation_sampler.interpolation = .CUBICSPLINE;
+      }
+    }
+
+    channels := get_array(animation_sampler, "channels");
+    for channel_parsed: channels {
+      channel: GLTF_Channel;
+      defer array_add(*animation.channels, channel);
+
+      channel.sampler = get_int(channel_parsed, "sampler", -1);
+
+      target := get(channel_parsed, "target", .OBJECT);
+      channel.target.node = get_int(target, "node", -1);
+
+      if get_string(target, "path") == {
+        case "translation";
+          channel.target.property = .TRANSLATION;
+        case "rotation";
+          channel.target.property = .ROTATION;
+        case "scale";
+          channel.target.property = .SCALE;
+        case "weights";
+          channel.target.property = .WEIGHTS;
+      }
     }
   }
 

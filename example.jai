@@ -14,6 +14,7 @@ main :: () {
 
   simple_tests();
   rigged_tests();
+  animation_tests();
   camera_tests();
   khr_lights_punctual_tests();
   glb_file_tests();
@@ -32,6 +33,23 @@ check_leaks :: () {
 
   report := make_leak_report();
   log_leak_report(report);
+}
+
+animation_tests :: () {
+  data := gltf_parse_file("./test-samples/rigged_simple/RiggedSimple.gltf");
+  defer gltf_free(*data);
+
+  assert(data.animations.count == 1);
+  assert(data.animations[0].channels.count == 3);
+  assert(data.animations[0].samplers.count == 3);
+
+  assert(data.animations[0].samplers[0].input == 5);
+  assert(data.animations[0].samplers[0].output == 6);
+  assert(data.animations[0].samplers[0].interpolation == GLTF_Interpolation.LINEAR);
+
+  assert(data.animations[0].channels[0].sampler == 0);
+  assert(data.animations[0].channels[0].target.node == 4);
+  assert(data.animations[0].channels[0].target.property == GLTF_Target_Property.TRANSLATION);
 }
 
 simple_tests :: () {
