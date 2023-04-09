@@ -18,15 +18,14 @@ GLTF_Data :: struct {
   lights       : [..] GLTF_Light;
   animations   : [..] GLTF_Animation;
 
-  using meta : struct { 
+  using meta : struct {
     // Used to prevent loading buffers when it's a glb file
     // because it's already loaded in memory.
-    is_glb : bool; 
+    is_glb : bool;
     // Holds all the memory for GLTF_Data.
-    pool   : Pool; 
+    pool   : Pool;
   };
 }
-
 
 gltf_parse_string :: (gltf_buffer: string) -> GLTF_Data {
   data: GLTF_Data;
@@ -43,11 +42,7 @@ gltf_parse_string :: (gltf_buffer: string) -> GLTF_Data {
   success, root := json_parse_string(gltf_buffer);
   defer json_free(root);
 
-  if !success {
-    log_error("JSON parsing failed.");
-    exit(-1);
-  }
-
+  if !success then crash("JSON parsing failed.");
 
 
   //
@@ -102,7 +97,7 @@ gltf_parse_string :: (gltf_buffer: string) -> GLTF_Data {
 
     children, has_children := get_array(node_parsed, "children");
     if has_children {
-      for val: children array_add(*node.children, parse_int(val)); 
+      for val: children array_add(*node.children, parse_int(val));
     }
 
     extensions, has_extension := get(node_parsed, "extensions", .OBJECT);
@@ -123,7 +118,7 @@ gltf_parse_string :: (gltf_buffer: string) -> GLTF_Data {
     buffer: GLTF_Buffer;
     defer array_add(*data.buffers, buffer);
 
-    buffer.byte_length = get_int(buffer_parsed, "byteLength"); 
+    buffer.byte_length = get_int(buffer_parsed, "byteLength");
     buffer.uri         = get_string(buffer_parsed, "uri");
   }
 
@@ -190,7 +185,7 @@ gltf_parse_string :: (gltf_buffer: string) -> GLTF_Data {
         accessor.stride = buffer_view.stride;
         continue;
       }
-    } 
+    }
 
     accessor.stride = get_component_info(accessor).stride;
   }
@@ -566,7 +561,7 @@ gltf_parse_string :: (gltf_buffer: string) -> GLTF_Data {
     }
   }
 
-  
+
 
 
   // Fill parents in nodes, to easily construct a hierarchy.
@@ -593,8 +588,12 @@ gltf_free :: (using gltf_data: *GLTF_Data) {
 gltf_parse_file :: (filepath: string) -> GLTF_Data {
   path, basename, extension := path_decomp(filepath);
 
-  gltf_string := read_entire_file(filepath);
+  gltf_string, success := read_entire_file(filepath);
   defer free(gltf_string);
+
+  if !success {
+    crash("Reading % failed. Are you sure that your file exists?", filepath);
+  }
 
   gltf_data := ifx extension == "glb"
                then parse_glb_string(gltf_string)
@@ -635,38 +634,51 @@ GLTF_Component_Info :: struct {
   size   : int; // Component's size in bytes.
   count  : int; // Number of component.
   stride : int; // Computed count * size.
+  type   : Type;
 }
 
 get_component_info :: (accessor: GLTF_Accessor) -> GLTF_Component_Info {
   info : GLTF_Component_Info;
 
   if #complete accessor.component_type == {
-    case .BYTE;             info.size = size_of(s8);
-    case .UNSIGNED_BYTE;    info.size = size_of(u8);
-    case .SHORT;            info.size = size_of(s16);
-    case .UNSIGNED_SHORT;   info.size = size_of(u16);
-    case .UNSIGNED_INTEGER; info.size = size_of(u32);
-    case .FLOAT;            info.size = size_of(float);
+    case .BYTE;
+      info.size = size_of(s8);
+      info.type = s8;
+    case .UNSIGNED_BYTE;
+      info.size = size_of(u8);
+      info.type = u8;
+    case .SHORT;
+      info.size = size_of(s16);
+      info.type = s16;
+    case .UNSIGNED_SHORT;
+      info.size = size_of(u16);
+      info.type = u16;
+    case .UNSIGNED_INTEGER;
+      info.size = size_of(u32);
+      info.type = u32;
+    case .FLOAT;
+      info.size = size_of(float);
+      info.type = float;
   }
 
   if #complete accessor.type == {
-    case .VEC2;   
+    case .VEC2;
       info.count = 2;
       info.stride = 2 * info.size;
-    case .VEC3;   
+    case .VEC3;
       info.count = 3;
       info.stride = 3 * info.size;
     case .VEC4; #through;
     case .MAT2;
       info.count = 4;
       info.stride = 4 * info.size;
-    case .MAT3;   
+    case .MAT3;
       info.count = 9;
       info.stride = 9 * info.size;
-    case .MAT4;   
+    case .MAT4;
       info.count = 16;
       info.stride = 16 * info.size;
-    case .SCALAR; 
+    case .SCALAR;
       info.count = 1;
       info.stride = info.size;
   }
@@ -696,7 +708,7 @@ get_component_info :: (accessor: GLTF_Accessor) -> GLTF_Component_Info {
 // the T * R * S order to compose the transformation matrix.
 // If none are provided, the transform is the identity.
 //
-// When a node is targeted for animation, referenced by 
+// When a node is targeted for animation, referenced by
 // an animation.channel.target, matrix must not be present.
 GLTF_Node :: struct {
   // The user-defined name of this object.
@@ -1220,7 +1232,7 @@ get_local_transform :: (using node: GLTF_Node) -> Matrix4 {
     transform : Matrix4 = ---;
     for matrix transform.floats[it_index] = it;
 
-    // Careful here, we transpose the matrix because glTF 
+    // Careful here, we transpose the matrix because glTF
     // store column-major matrices.
     return transpose(transform);
   }
@@ -1252,7 +1264,7 @@ is_glb :: (buffer: string) -> bool {
   return fields[0] == GLB_MAGIC_NUMBER;
 }
 
-// Documentation for parsing glTF binaries: 
+// Documentation for parsing glTF binaries:
 // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#binary-gltf-layout
 parse_glb_string :: (glb_buffer: string) -> GLTF_Data {
   GLB_CHUNK_TYPE_JSON : u32 : 0x4E4F534A; // 'JSON' in ASCII.
@@ -1266,21 +1278,19 @@ parse_glb_string :: (glb_buffer: string) -> GLTF_Data {
   length  := fields[2];
 
   if !is_glb(glb_buffer) {
-    log_error("First 4-byte are not equal to magic number.");
-    exit(-1);
+    crash("First 4-byte are not equal to magic number.");
   }
 
   if version != 2 {
-    log_error("Only glTF spec v2 is supported.");
-    exit(-1);
+    crash("Only glTF spec v2 is supported.");
   }
 
-  /* 
-     
+  /*
+
       After having parsed the header, we get two chunk (in this order):
         - JSON data
         - Binary data
-  
+
       Each chunk has the same following structure:
         - chunk length (u32)
         - chunk type (u32)
@@ -1295,13 +1305,12 @@ parse_glb_string :: (glb_buffer: string) -> GLTF_Data {
   // We first parse the JSON data:
 
   if fields[4] != GLB_CHUNK_TYPE_JSON {
-    log_error("First chunk must be JSON data.");
-    exit(-1);
+    crash("First chunk must be JSON data.");
   }
 
   json_length := fields[3];
   json_offset := 5 * size_of(u32);
-  
+
   json_string.data  = glb_buffer.data + json_offset;
   json_string.count = json_length;
 
@@ -1311,8 +1320,7 @@ parse_glb_string :: (glb_buffer: string) -> GLTF_Data {
   bin_chunk  := cast(*u32) (json_string.data + json_string.count);
 
   if bin_chunk[1] != GLB_CHUNK_TYPE_BIN {
-    log_error("Second chunk must be BIN data.");
-    exit(-1);
+    crash("Second chunk must be BIN data.");
   }
 
   bin_length       := bin_chunk[0];
@@ -1360,7 +1368,7 @@ parse_texture_info :: (value: JSON_Value, key: string) -> GLTF_Texture_Info, boo
     };
   }
 
-  return texture_info, has_texture; 
+  return texture_info, has_texture;
 }
 
 parse_int :: (json_value: JSON_Value) -> int {
@@ -1393,8 +1401,8 @@ get_string :: (json_val: JSON_Value, key: string) -> string {
   return copy_string(str);
 }
 
-get :: (json_val     : JSON_Value, 
-        key          : string, 
+get :: (json_val     : JSON_Value,
+        key          : string,
         expected_type: JSON_Type) -> JSON_Value, bool {
 
   assert(json_val.type == .OBJECT);
@@ -1424,6 +1432,11 @@ get :: (json_val     : JSON_Value,
 
   assert(val.type == expected_type);
   return val, success;
+}
+
+crash :: (msg: string, args: ..Any) {
+  log_error(msg, args);
+  exit(-1);
 }
 
 make_pool_allocator :: (data: *void) -> Allocator {
