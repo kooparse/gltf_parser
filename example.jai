@@ -149,7 +149,7 @@ data_read_tests :: () {
   defer gltf_free(*gltf_data);
 
   // Useless, but we want to try if no crash happens.
-  gltf_load_buffers(*gltf_data); 
+  gltf_load_buffers(*gltf_data);
 
   vertices : [..] float;
   mesh     := gltf_data.meshes[0];
@@ -159,47 +159,20 @@ data_read_tests :: () {
 
     if position_accessor != -1 {
       accessor := gltf_data.accessors[position_accessor];
-      read_buffer_from_accessor(*gltf_data, accessor, *vertices, float);
+      read_buffer_from_accessor(*gltf_data, accessor, *vertices);
     }
   }
 
   expected_vertices := float.[
     -0.50, -0.50, 0.50, 0.50, -0.50, 0.50, -0.50, 0.50, 0.50,
-    0.50, 0.50, 0.50, 0.50, -0.50, 0.50, -0.50, -0.50, 0.50, 
-    0.50, -0.50, -0.50, -0.50, -0.50, -0.50, 0.50, 0.50, 0.50, 
-    0.50, -0.50, 0.50, 0.50, 0.50, -0.50, 0.50, -0.50, -0.50, 
-    -0.50, 0.50, 0.50, 0.50, 0.50, 0.50, -0.50, 0.50, -0.50, 
-    0.50, 0.50, -0.50, -0.50, -0.50, 0.50, -0.50, 0.50, 0.50, 
-    -0.50, -0.50, -0.50, -0.50, 0.50, -0.50, -0.50, -0.50, -0.50, 
+    0.50, 0.50, 0.50, 0.50, -0.50, 0.50, -0.50, -0.50, 0.50,
+    0.50, -0.50, -0.50, -0.50, -0.50, -0.50, 0.50, 0.50, 0.50,
+    0.50, -0.50, 0.50, 0.50, 0.50, -0.50, 0.50, -0.50, -0.50,
+    -0.50, 0.50, 0.50, 0.50, 0.50, 0.50, -0.50, 0.50, -0.50,
+    0.50, 0.50, -0.50, -0.50, -0.50, 0.50, -0.50, 0.50, 0.50,
+    -0.50, -0.50, -0.50, -0.50, 0.50, -0.50, -0.50, -0.50, -0.50,
     -0.50, 0.50, -0.50, 0.50, -0.50, -0.50, 0.50, 0.50, -0.50,
   ];
-
-  read_buffer_from_accessor :: (gltf_data: *GLTF_Data, accessor: GLTF_Accessor,
-                                list: *[..] $T, $type: Type) {
-
-    buffer_view := gltf_data.buffer_views[accessor.buffer_view];
-    buffer      := gltf_data.buffers[buffer_view.buffer];
-
-    component_size  := size_of(type);
-    component_count := get_component_info(accessor).count;
-    stride          := accessor.stride / component_size;
-
-    offset := (buffer_view.byte_offset + accessor.byte_offset) / component_size;
-
-    index := 0;
-    while index < accessor.count {
-      buffer_data := cast(*type) buffer.data.data;
-      data        := (buffer_data + offset + index * stride);
-
-      component_index := 0;
-      while component_index < component_count {
-        array_add(list, data[component_index]);
-        component_index += 1;
-      }
-
-      index += 1;
-    }
-  }
 
   assert(vertices.count == 72);
   for vertices assert(it == expected_vertices[it_index]);

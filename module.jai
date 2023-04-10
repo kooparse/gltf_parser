@@ -634,31 +634,18 @@ GLTF_Component_Info :: struct {
   size   : int; // Component's size in bytes.
   count  : int; // Number of component.
   stride : int; // Computed count * size.
-  type   : Type;
 }
 
 get_component_info :: (accessor: GLTF_Accessor) -> GLTF_Component_Info {
   info : GLTF_Component_Info;
 
   if #complete accessor.component_type == {
-    case .BYTE;
-      info.size = size_of(s8);
-      info.type = s8;
-    case .UNSIGNED_BYTE;
-      info.size = size_of(u8);
-      info.type = u8;
-    case .SHORT;
-      info.size = size_of(s16);
-      info.type = s16;
-    case .UNSIGNED_SHORT;
-      info.size = size_of(u16);
-      info.type = u16;
-    case .UNSIGNED_INTEGER;
-      info.size = size_of(u32);
-      info.type = u32;
-    case .FLOAT;
-      info.size = size_of(float);
-      info.type = float;
+    case .BYTE;             info.size = size_of(s8);
+    case .UNSIGNED_BYTE;    info.size = size_of(u8);
+    case .SHORT;            info.size = size_of(s16);
+    case .UNSIGNED_SHORT;   info.size = size_of(u16);
+    case .UNSIGNED_INTEGER; info.size = size_of(u32);
+    case .FLOAT;            info.size = size_of(float);
   }
 
   if #complete accessor.type == {
@@ -684,6 +671,73 @@ get_component_info :: (accessor: GLTF_Accessor) -> GLTF_Component_Info {
   }
 
   return info;
+}
+
+// @note: I would love to find a better way for doing that, if someone
+//        knows something, let me know!
+read_buffer_from_accessor :: (gltf_data: *GLTF_Data, accessor: GLTF_Accessor, list: *[..] $type) {
+  if #complete accessor.component_type == {
+    case .BYTE;
+      temp := get_buffer_data(gltf_data, accessor, s8);
+      defer array_free(temp);
+
+      for temp array_add(list, cast(type) it);
+
+    case .UNSIGNED_BYTE;
+      temp := get_buffer_data(gltf_data, accessor, u8);
+      defer array_free(temp);
+
+      for temp array_add(list, cast(type) it);
+
+    case .SHORT;
+      temp := get_buffer_data(gltf_data, accessor, s16);
+      defer array_free(temp);
+
+      for temp array_add(list, cast(type) it);
+    case .UNSIGNED_SHORT;
+      temp := get_buffer_data(gltf_data, accessor, u16);
+      defer array_free(temp);
+
+      for temp array_add(list, cast(type) it);
+
+    case .UNSIGNED_INTEGER;
+      temp := get_buffer_data(gltf_data, accessor, u32);
+      defer array_free(temp);
+
+      for temp array_add(list, cast(type) it);
+
+    case .FLOAT;
+      temp := get_buffer_data(gltf_data, accessor, float);
+      defer array_free(temp);
+
+      for temp array_add(list, cast(type) it);
+  }
+
+  get_buffer_data :: (gltf_data: *GLTF_Data, accessor: GLTF_Accessor, $type: Type) -> [..]type {
+    list : [..]type;
+
+    buffer_view := gltf_data.buffer_views[accessor.buffer_view];
+    buffer      := gltf_data.buffers[buffer_view.buffer];
+
+    component_info  := get_component_info(accessor);
+
+    component_size  := size_of(type);
+    component_count := component_info.count;
+    stride          := accessor.stride / component_size;
+
+    offset := (buffer_view.byte_offset + accessor.byte_offset) / component_size;
+
+    for data_index: 0..accessor.count - 1 {
+      buffer_data := cast(*type) buffer.data.data;
+      data := (buffer_data + offset + data_index * stride);
+
+      for component_index: 0..component_count - 1 {
+        array_add(*list, data[component_index]);
+      }
+    }
+
+    return list;
+  }
 }
 
 
