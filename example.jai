@@ -10,6 +10,8 @@
 }
 
 main :: () {
+  check_print();
+
   check_leaks();
 
   simple_tests();
@@ -23,6 +25,13 @@ main :: () {
   print("\n");
   log("All tests and examples were executed without errors!");
   print("\n");
+}
+
+check_print :: () {
+  data := gltf_parse_file("./test-samples/rigged_simple/RiggedSimple.gltf");
+  defer gltf_free(*data);
+
+  gltf_debug_print(data);
 }
 
 check_leaks :: () {

@@ -23,6 +23,8 @@ main :: () {
   gltf := gltf_parse_file("./path-to-gltf-or-glb-file");
   defer gltf_free(*gltf);
 
+  gltf_debug_print(gltf);
+
   gltf_load_buffers(*gltf);
 
   vertices: [..]float;
@@ -57,6 +59,12 @@ Tiny utility that gives you the **size, count and stride** of the underlying
 accessor's data.
 
 - `get_component_info :: (gltf_accessor: GLTF_Accessor) -> GLTF_Component_Info`
+
+Being able to easily print information could save you lot of debug times,
+this procedure gives you general informations about it (animations names,
+nodes counts, etc...).
+
+- `gltf_debug_print :: (gltf_data: GLTF_Data)`
 
 ## Features
 

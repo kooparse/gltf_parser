@@ -629,6 +629,42 @@ gltf_load_buffers :: (gltf_data: *GLTF_Data) -> bool {
   return success;
 }
 
+gltf_debug_print :: (gltf_data: GLTF_Data) {
+  PRINT_FORMAT :: #string DONE
+
+    =========
+
+    Debug information for glTF at %.
+
+    % scenes(s) was found.
+    % node(s) was found.
+    % camera(s) was found.
+    % buffer(s) was found.
+    % skin(s) was found.
+    % meshes(s) was found.
+    % images(s) was found.
+
+  DONE
+
+  print(PRINT_FORMAT,
+        gltf_data.filepath,
+        gltf_data.scenes.count,
+        gltf_data.nodes.count,
+        gltf_data.cameras.count,
+        gltf_data.buffers.count,
+        gltf_data.skins.count,
+        gltf_data.meshes.count,
+        gltf_data.images.count);
+
+  log("    % animation(s) was found.", gltf_data.animations.count);
+
+  for gltf_data.animations {
+    print("      - '%' (at index %)\n", it.name, it_index);
+  }
+
+  print("\n    =========\n");
+}
+
 
 GLTF_Component_Info :: struct {
   size   : int; // Component's size in bytes.
