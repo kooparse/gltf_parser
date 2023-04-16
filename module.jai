@@ -662,7 +662,7 @@ gltf_debug_print :: (gltf_data: GLTF_Data) {
     print("      - '%' (at index %)\n", it.name, it_index);
   }
 
-  print("\n    =========\n");
+  print("\n\n");
 }
 
 
