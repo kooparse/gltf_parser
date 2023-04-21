@@ -630,6 +630,8 @@ gltf_load_buffers :: (gltf_data: *GLTF_Data) -> bool {
 }
 
 gltf_debug_print :: (gltf_data: GLTF_Data) {
+  builder : String_Builder;
+
   PRINT_FORMAT :: #string DONE
 
     =========
@@ -643,10 +645,9 @@ gltf_debug_print :: (gltf_data: GLTF_Data) {
     % skin(s) was found.
     % meshes(s) was found.
     % images(s) was found.
-
   DONE
 
-  print(PRINT_FORMAT,
+  print_to_builder(*builder, PRINT_FORMAT,
         gltf_data.filepath,
         gltf_data.scenes.count,
         gltf_data.nodes.count,
@@ -656,13 +657,17 @@ gltf_debug_print :: (gltf_data: GLTF_Data) {
         gltf_data.meshes.count,
         gltf_data.images.count);
 
-  log("    % animation(s) was found.", gltf_data.animations.count);
+  append(*builder, "\n");
+  print_to_builder(*builder, "    % animation(s) was found.\n", gltf_data.animations.count);
 
   for gltf_data.animations {
-    print("      - '%' (at index %)\n", it.name, it_index);
+    print_to_builder(*builder, "      - '%' (at index %)\n", it.name, it_index);
   }
 
-  print("\n\n");
+  append(*builder, "\n\n");
+
+  message := builder_to_string(*builder);
+  log(message);
 }
 
 
