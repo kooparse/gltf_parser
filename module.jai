@@ -629,8 +629,10 @@ gltf_load_buffers :: (gltf_data: *GLTF_Data) -> bool {
   return success;
 }
 
+// @todo: Should free the string.
 gltf_debug_print :: (gltf_data: GLTF_Data) {
   builder : String_Builder;
+  defer free_buffers(*builder);
 
   PRINT_FORMAT :: #string DONE
 
@@ -717,6 +719,7 @@ get_component_info :: (accessor: GLTF_Accessor) -> GLTF_Component_Info {
 // @note: I would love to find a better way for doing that, if someone
 //        knows something, let me know!
 read_buffer_from_accessor :: (gltf_data: *GLTF_Data, accessor: GLTF_Accessor, list: *[..] $type) {
+
   if #complete accessor.component_type == {
     case .BYTE;
       temp := get_buffer_data(gltf_data, accessor, s8);
@@ -752,32 +755,6 @@ read_buffer_from_accessor :: (gltf_data: *GLTF_Data, accessor: GLTF_Accessor, li
       defer array_free(temp);
 
       for temp array_add(list, cast(type) it);
-  }
-
-  get_buffer_data :: (gltf_data: *GLTF_Data, accessor: GLTF_Accessor, $type: Type) -> [..]type {
-    list : [..]type;
-
-    buffer_view := gltf_data.buffer_views[accessor.buffer_view];
-    buffer      := gltf_data.buffers[buffer_view.buffer];
-
-    component_info  := get_component_info(accessor);
-
-    component_size  := size_of(type);
-    component_count := component_info.count;
-    stride          := accessor.stride / component_size;
-
-    offset := (buffer_view.byte_offset + accessor.byte_offset) / component_size;
-
-    for data_index: 0..accessor.count - 1 {
-      buffer_data := cast(*type) buffer.data.data;
-      data := (buffer_data + offset + data_index * stride);
-
-      for component_index: 0..component_count - 1 {
-        array_add(*list, data[component_index]);
-      }
-    }
-
-    return list;
   }
 }
 
@@ -1313,6 +1290,33 @@ GLTF_Light_Spot :: struct {
 }
 
 #scope_file;
+
+get_buffer_data :: (gltf_data: *GLTF_Data, accessor: GLTF_Accessor, $type: Type) -> [..]type {
+  list : [..]type;
+
+  buffer_view := gltf_data.buffer_views[accessor.buffer_view];
+  buffer      := gltf_data.buffers[buffer_view.buffer];
+
+  component_info  := get_component_info(accessor);
+
+  component_size  := size_of(type);
+  component_count := component_info.count;
+  stride          := accessor.stride / component_size;
+
+  offset := (buffer_view.byte_offset + accessor.byte_offset) / component_size;
+
+  for data_index: 0..accessor.count - 1 {
+    buffer_data := cast(*type) buffer.data.data;
+    data := (buffer_data + offset + data_index * stride);
+
+    for component_index: 0..component_count - 1 {
+      array_add(*list, data[component_index]);
+    }
+  }
+
+  return list;
+}
+
 
 fill_parents :: (data: *GLTF_Data, node: *GLTF_Node, parent_index: int) {
   for node.children {
