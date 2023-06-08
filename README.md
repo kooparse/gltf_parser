@@ -44,25 +44,26 @@ All examples could be found in `example.jai`. Also, if you want to run the tests
 ### Helpers
 
 For ease, I provide a procedure to load buffer in memory. Using it, you'll get
-the underlying data on the field *data* in a **GLTF_Buffer**.
+the underlying data in **GLTF_Buffer**:
 
 - `gltf_load_buffers  :: (gltf_data: *GLTF_Data)`
 
-Copy underlying data from an accessor. You need to provide an array where the data
-will be copied, and `gltf_load_buffers` must be call first. If the type of your
-array doesn't match the type of the accessor's component, a cast will be made.
-See `data_read_tests` example!
+If you want to easily copy the underlying data from an accessor, this procedure
+will get the job done. You just need to provide an array of your type from which
+the data will be copied. Also, `gltf_load_buffers` must be call first.
+If the type of your array doesn't match the type of the accessor's component,
+a cast will be made (see `data_read_tests` example):
 
 - `read_buffer_from_accessor :: (gltf: *GLTF_Data, accessor: GLTF_Accessor, list: *[..] $T)`
 
-Tiny utility that gives you the **size, count and stride** of the underlying
-accessor's data.
+A tiny utility that gives you the **size, count and stride** of the underlying
+accessor's data:
 
 - `get_component_info :: (gltf_accessor: GLTF_Accessor) -> GLTF_Component_Info`
 
 Being able to easily print information could save you lot of debug times,
 this procedure gives you general informations about it (animations names,
-nodes counts, etc...).
+nodes counts, etc...):
 
 - `gltf_debug_print :: (gltf_data: GLTF_Data)`
 
