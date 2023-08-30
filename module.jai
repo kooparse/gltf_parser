@@ -244,7 +244,7 @@ gltf_parse_string :: (gltf_buffer: string) -> GLTF_Data {
 
     primitives := get_array(mesh_parsed, "primitives");
     for prim_parsed: primitives {
-      primitive: GLTF_Primivite;
+      primitive: GLTF_Primitive;
       defer array_add(*mesh.primitives, primitive);
 
       mode := get_int(prim_parsed, "mode");
@@ -1166,7 +1166,7 @@ GLTF_Animation :: struct {
 }
 
 // Geometry to be rendered with the given material.
-GLTF_Primivite :: struct {
+GLTF_Primitive :: struct {
   using attributes : GLTF_Attributes;
   // The topology type of primitives to render.
   mode := GLTF_Mode.TRIANGLES;
@@ -1182,7 +1182,7 @@ GLTF_Mesh :: struct {
   // The user-defined name of this object.
   name : string;
   // An array of primitives, each defining geometry to be rendered.
-  primitives : [..] GLTF_Primivite;
+  primitives : [..] GLTF_Primitive;
 }
 
 // Metadata about the glTF asset.
