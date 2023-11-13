@@ -1,5 +1,6 @@
 #import "Basic"()(MEMORY_DEBUGGER=true);
 #import "File";
+#import "Math";
 #import "Compiler";
 
 #import, file "module.jai";
@@ -15,6 +16,7 @@ main :: () {
   check_leaks();
 
   simple_tests();
+  bounding_box_tests();
   rigged_tests();
   animation_tests();
   camera_tests();
@@ -42,6 +44,35 @@ check_leaks :: () {
 
   report := make_leak_report();
   log_leak_report(report);
+}
+
+bounding_box_tests :: () {
+  data := gltf_parse_file("./test-samples/box/Box.gltf");
+  defer gltf_free(*data);
+
+  {
+    accessor := data.accessors[0];
+    min := accessor.bounding_box.min;
+    max := accessor.bounding_box.max;
+    assert(min.scalar == 0);
+    assert(max.scalar == 23);
+  }
+
+  {
+    accessor := data.accessors[1];
+    min := accessor.bounding_box.min;
+    max := accessor.bounding_box.max;
+    assert(min.vec3 == make_vector3(-1));
+    assert(max.vec3 == make_vector3(1));
+  }
+
+  {
+    accessor := data.accessors[2];
+    min := accessor.bounding_box.min;
+    max := accessor.bounding_box.max;
+    assert(min.vec3 == make_vector3(-0.5));
+    assert(max.vec3 == make_vector3(0.5));
+  }
 }
 
 animation_tests :: () {

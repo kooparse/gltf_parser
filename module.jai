@@ -178,6 +178,18 @@ gltf_parse_string :: (gltf_buffer: string) -> GLTF_Data {
       case "MAT4";   accessor.type = .MAT4;
     }
 
+    for value: get_array(accessor_parsed, "min") {
+      value_to_store := parse_float(value);
+      union_value    := *accessor.bounding_box.min;
+      set_bounding_box(accessor.type, value_to_store, union_value, it_index);
+    }
+
+    for value: get_array(accessor_parsed, "max") {
+      value_to_store := parse_float(value);
+      union_value    := *accessor.bounding_box.max;
+      set_bounding_box(accessor.type, value_to_store, union_value, it_index);
+    }
+
     if accessor.buffer_view != -1 {
       buffer_view := data.buffer_views[accessor.buffer_view];
 
@@ -188,6 +200,7 @@ gltf_parse_string :: (gltf_buffer: string) -> GLTF_Data {
     }
 
     accessor.stride = get_component_info(accessor).stride;
+
   }
 
 
@@ -865,6 +878,23 @@ GLTF_Accessor :: struct {
   count   := 0;
   // Specifies whether integer data values are normalized before usage.
   normalized := false;
+  // Contain per-component minimum and maximum values.
+  // @todo: Would be better with tagged union for this.
+  bounding_box : struct {
+    min : GLTF_Min_Max_Value;
+    max : GLTF_Min_Max_Value;
+  }
+}
+
+// Refer to a minimum or maximum value.
+GLTF_Min_Max_Value :: union {
+  scalar: float;
+  vec2: Vector2;
+  vec3: Vector3;
+  vec4: Vector4;
+  mat2: Matrix2;
+  mat3: Matrix3;
+  mat4: Matrix4;
 }
 
 // The root nodes of a scene.
@@ -1469,6 +1499,32 @@ parse_texture_info :: (value: JSON_Value, key: string) -> GLTF_Texture_Info, boo
 
   return texture_info, has_texture;
 }
+
+set_bounding_box :: (type: GLTF_Accessor_Type, value_to_store: float, union_value: *GLTF_Min_Max_Value, array_index: int) {
+  if #complete type == {
+    case .SCALAR;
+      union_value.scalar = value_to_store;
+    case .VEC2;
+      array := union_value.vec2.component.data;
+      array[array_index] = value_to_store;
+    case .VEC3;
+      array := union_value.vec3.component.data;
+      array[array_index] = value_to_store;
+    case .VEC4;
+      array := union_value.vec4.component.data;
+      array[array_index] = value_to_store;
+    case .MAT2;
+      array := union_value.mat2.floats.data;
+      array[array_index] = value_to_store;
+    case .MAT3;
+      array := union_value.mat3.floats.data;
+      array[array_index] = value_to_store;
+    case .MAT4;
+      array := union_value.mat4.floats.data;
+      array[array_index] = value_to_store;
+  }
+}
+
 
 parse_int :: (json_value: JSON_Value) -> int {
   assert(json_value.type == .NUMBER);
