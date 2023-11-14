@@ -52,24 +52,24 @@ bounding_box_tests :: () {
 
   {
     accessor := data.accessors[0];
-    min := accessor.bounding_box.min;
-    max := accessor.bounding_box.max;
+    min := accessor.min;
+    max := accessor.max;
     assert(min.scalar == 0);
     assert(max.scalar == 23);
   }
 
   {
     accessor := data.accessors[1];
-    min := accessor.bounding_box.min;
-    max := accessor.bounding_box.max;
+    min := accessor.min;
+    max := accessor.max;
     assert(min.vec3 == make_vector3(-1));
     assert(max.vec3 == make_vector3(1));
   }
 
   {
     accessor := data.accessors[2];
-    min := accessor.bounding_box.min;
-    max := accessor.bounding_box.max;
+    min := accessor.min;
+    max := accessor.max;
     assert(min.vec3 == make_vector3(-0.5));
     assert(max.vec3 == make_vector3(0.5));
   }

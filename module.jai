@@ -180,14 +180,14 @@ gltf_parse_string :: (gltf_buffer: string) -> GLTF_Data {
 
     for value: get_array(accessor_parsed, "min") {
       value_to_store := parse_float(value);
-      union_value    := *accessor.bounding_box.min;
-      set_bounding_box(accessor.type, value_to_store, union_value, it_index);
+      union_value    := *accessor.min;
+      set_min_max_value(accessor.type, value_to_store, union_value, it_index);
     }
 
     for value: get_array(accessor_parsed, "max") {
       value_to_store := parse_float(value);
-      union_value    := *accessor.bounding_box.max;
-      set_bounding_box(accessor.type, value_to_store, union_value, it_index);
+      union_value    := *accessor.max;
+      set_min_max_value(accessor.type, value_to_store, union_value, it_index);
     }
 
     if accessor.buffer_view != -1 {
@@ -880,10 +880,8 @@ GLTF_Accessor :: struct {
   normalized := false;
   // Contain per-component minimum and maximum values.
   // @todo: Would be better with tagged union for this.
-  bounding_box : struct {
-    min : GLTF_Min_Max_Value;
-    max : GLTF_Min_Max_Value;
-  }
+  min : GLTF_Min_Max_Value;
+  max : GLTF_Min_Max_Value;
 }
 
 // Refer to a minimum or maximum value.
@@ -1500,7 +1498,7 @@ parse_texture_info :: (value: JSON_Value, key: string) -> GLTF_Texture_Info, boo
   return texture_info, has_texture;
 }
 
-set_bounding_box :: (type: GLTF_Accessor_Type, value_to_store: float, union_value: *GLTF_Min_Max_Value, array_index: int) {
+set_min_max_value :: (type: GLTF_Accessor_Type, value_to_store: float, union_value: *GLTF_Min_Max_Value, array_index: int) {
   if #complete type == {
     case .SCALAR;
       union_value.scalar = value_to_store;
