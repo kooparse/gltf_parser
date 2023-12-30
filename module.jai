@@ -22,16 +22,15 @@ GLTF_Data :: struct {
     // Used to prevent loading buffers when it's a glb file
     // because it's already loaded in memory.
     is_glb : bool;
-    // Holds all the memory for GLTF_Data.
-    pool   : Pool;
+    // Used in order
+    allocator : Allocator;
   };
 }
 
 gltf_parse_string :: (gltf_buffer: string) -> GLTF_Data {
   data: GLTF_Data;
 
-  set_allocators(*data.pool);
-  push_allocator(make_pool_allocator(*data.pool));
+  data.allocator = context.allocator;
 
   if gltf_buffer == "" then return data;
 
@@ -594,10 +593,6 @@ gltf_parse_string :: (gltf_buffer: string) -> GLTF_Data {
   return data;
 }
 
-gltf_free :: (using gltf_data: *GLTF_Data) {
-  release(*pool);
-}
-
 gltf_parse_file :: (filepath: string) -> GLTF_Data {
   path, basename, extension := path_decomp(filepath);
 
@@ -612,8 +607,7 @@ gltf_parse_file :: (filepath: string) -> GLTF_Data {
                then parse_glb_string(gltf_string)
                else gltf_parse_string(gltf_string);
 
-  pool_allocator     := make_pool_allocator(*gltf_data.pool);
-  gltf_data.filepath = copy_string(filepath,, allocator=pool_allocator);
+  gltf_data.filepath = copy_string(filepath);
 
   return gltf_data;
 }
@@ -630,10 +624,7 @@ gltf_load_buffers :: (gltf_data: *GLTF_Data) -> bool {
     bin_path := join(folder_path, buffer.uri);
     defer free(bin_path);
 
-    pool_allocator := make_pool_allocator(*gltf_data.pool);
-    push_allocator(pool_allocator);
-
-    data, success := read_entire_file(bin_path);
+    data, success := read_entire_file(bin_path ,, gltf_data.allocator);
     if !success then success = false;
 
     buffer.data = data;
@@ -644,7 +635,7 @@ gltf_load_buffers :: (gltf_data: *GLTF_Data) -> bool {
 
 // @todo: Should free the string.
 gltf_debug_print :: (gltf_data: GLTF_Data) {
-  builder : String_Builder;
+  builder: String_Builder;
   defer free_buffers(*builder);
 
   PRINT_FORMAT :: #string DONE
@@ -681,7 +672,7 @@ gltf_debug_print :: (gltf_data: GLTF_Data) {
 
   append(*builder, "\n\n");
 
-  message := builder_to_string(*builder);
+  message := builder_to_string(*builder ,, temp);
   log(message);
 }
 
@@ -1463,8 +1454,7 @@ parse_glb_string :: (glb_buffer: string) -> GLTF_Data {
 
   assert(gltf_data.buffers.count == 1); // Only 1 buffer.
 
-  pool_allocator := make_pool_allocator(*gltf_data.pool);
-  buffer_data    := copy_string(bin_string,, allocator=pool_allocator);
+  buffer_data    := copy_string(bin_string);
   gltf_data.buffers[0].data = buffer_data;
 
   for * image: gltf_data.images {
@@ -1592,16 +1582,10 @@ crash :: (msg: string, args: ..Any) {
   exit(-1);
 }
 
-make_pool_allocator :: (data: *void) -> Allocator {
-  return Allocator.{ proc = pool_allocator_proc, data = data };
-}
-
 #import "Basic";
 #import "File";
 #import "String";
 #import "Hash_Table";
-#import "Flat_Pool";
-#import "Pool";
 #import "Math";
 
 #import, dir "modules/jaison";

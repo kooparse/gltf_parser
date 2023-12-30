@@ -11,9 +11,8 @@
 }
 
 main :: () {
+  check_leaks(); // Must be the first test.
   check_print();
-
-  check_leaks();
 
   simple_tests();
   bounding_box_tests();
@@ -31,24 +30,21 @@ main :: () {
 
 check_print :: () {
   data := gltf_parse_file("./test-samples/rigged_simple/RiggedSimple.gltf");
-  defer gltf_free(*data);
 
   gltf_debug_print(data);
 }
 
 check_leaks :: () {
-  data := gltf_parse_file("./test-samples/box/Box.gltf");
+  data := gltf_parse_file("./test-samples/box/Box.gltf" ,, temp);
   gltf_load_buffers(*data);
 
-  gltf_free(*data);
+  reset_temporary_storage();
 
-  report := make_leak_report();
-  log_leak_report(report);
+  report_memory_leaks();
 }
 
 bounding_box_tests :: () {
   data := gltf_parse_file("./test-samples/box/Box.gltf");
-  defer gltf_free(*data);
 
   {
     accessor := data.accessors[0];
@@ -77,7 +73,6 @@ bounding_box_tests :: () {
 
 animation_tests :: () {
   data := gltf_parse_file("./test-samples/rigged_simple/RiggedSimple.gltf");
-  defer gltf_free(*data);
 
   assert(data.animations.count == 1);
   assert(data.animations[0].channels.count == 3);
@@ -94,7 +89,6 @@ animation_tests :: () {
 
 simple_tests :: () {
   data := gltf_parse_file("./test-samples/box/Box.gltf");
-  defer gltf_free(*data);
 
   gltf_load_buffers(*data);
 
@@ -113,7 +107,6 @@ simple_tests :: () {
 
 rigged_tests :: () {
   data := gltf_parse_file("./test-samples/rigged_simple/RiggedSimple.gltf");
-  defer gltf_free(*data);
 
   gltf_load_buffers(*data);
 
@@ -129,7 +122,6 @@ rigged_tests :: () {
 
 camera_tests :: () {
   data := gltf_parse_file("./test-samples/cameras/Cameras.gltf");
-  defer gltf_free(*data);
 
   assert(data.cameras.count == 2);
 
@@ -154,7 +146,6 @@ camera_tests :: () {
 
 khr_lights_punctual_tests :: () {
   data := gltf_parse_file("./test-samples/khr_lights_punctual/Lights.gltf");
-  defer gltf_free(*data);
 
   assert(data.lights.count == 3);
 
@@ -174,7 +165,6 @@ khr_lights_punctual_tests :: () {
 
 glb_file_tests :: () {
   gltf_data := gltf_parse_file("./test-samples/box_binary_textured/BoxTextured.glb");
-  defer gltf_free(*gltf_data);
 
   texture_data := read_entire_file("./test-samples/box_binary_textured/test.png");
   defer free(texture_data);
@@ -186,7 +176,6 @@ glb_file_tests :: () {
 
 data_read_tests :: () {
   gltf_data := gltf_parse_file("./test-samples/box_binary/Box.glb");
-  defer gltf_free(*gltf_data);
 
   // Useless, but we want to try if no crash happens.
   gltf_load_buffers(*gltf_data);
