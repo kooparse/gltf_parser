@@ -613,7 +613,7 @@ gltf_parse_file :: (filepath: string) -> GLTF_Data {
                else gltf_parse_string(gltf_string);
 
   pool_allocator     := make_pool_allocator(*gltf_data.pool);
-  gltf_data.filepath = copy_string(filepath, allocator=pool_allocator);
+  gltf_data.filepath = copy_string(filepath,, allocator=pool_allocator);
 
   return gltf_data;
 }
@@ -1464,7 +1464,7 @@ parse_glb_string :: (glb_buffer: string) -> GLTF_Data {
   assert(gltf_data.buffers.count == 1); // Only 1 buffer.
 
   pool_allocator := make_pool_allocator(*gltf_data.pool);
-  buffer_data    := copy_string(bin_string, pool_allocator);
+  buffer_data    := copy_string(bin_string,, allocator=pool_allocator);
   gltf_data.buffers[0].data = buffer_data;
 
   for * image: gltf_data.images {
