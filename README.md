@@ -91,6 +91,7 @@ Also, we supports some glTF extensions:
 - [x] khr_materials_emissive_strength
 - [x] khr_materials_ior
 - [x] khr_materials_transmission
+- [x] khr_texture_transform
 
 ## Thanks
 
