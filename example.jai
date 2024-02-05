@@ -1,6 +1,7 @@
 #import "Basic"()(MEMORY_DEBUGGER=true);
 #import "File";
 #import "Math";
+#import "Sloppy_Math";
 #import "Compiler";
 
 #import, file "module.jai";
@@ -20,6 +21,7 @@ main :: () {
   animation_tests();
   camera_tests();
   khr_lights_punctual_tests();
+  khr_texture_transform();
   glb_file_tests();
   data_read_tests();
 
@@ -161,6 +163,26 @@ khr_lights_punctual_tests :: () {
 
   assert(data.nodes[0].light == 0);
   assert(data.nodes[2].light == 1);
+}
+
+khr_texture_transform :: () {
+  data := gltf_parse_file("./test-samples/khr_texture_transform/khr_texture_transform.glb");
+
+  assert(data.materials.count == 1);
+
+  texture_info := data.materials[0].metallic_roughness.base_color_texture;
+  assert(texture_info.has_khr_texture_transform == true);
+
+  offset := texture_info.khr_texture_transform.offset;
+  assert(offset[0] == 0);
+  assert(values_are_close(offset[1], xx -2.3333332008785725));
+
+  scale := texture_info.khr_texture_transform.scale;
+  assert(values_are_close(scale[0], xx 3.3333332008785725));
+  assert(values_are_close(scale[1], xx 3.3333332008785725));
+
+  assert(texture_info.khr_texture_transform.rotation == 0);
+  assert(texture_info.khr_texture_transform.texcoord == -1);
 }
 
 glb_file_tests :: () {

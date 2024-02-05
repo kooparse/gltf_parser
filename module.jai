@@ -919,10 +919,24 @@ GLTF_Texture_Info :: struct {
   // The scalar parameter applied to each normal
   // vector of the normal texture.
   // @Note: Only if normal texture.
-  scale := 1.0;
+  normal_scale := 1.0;
   // A scalar multiplier controlling the amount of occlusion applied.
   // @Note: Only if occlusion texture.
   strength := 1.;
+
+  has_khr_texture_transform : bool;
+  khr_texture_transform : struct {
+    // The offset of the UV coordinate origin as a factor of the texture dimensions.
+    offset   := float.[0, 0];
+    // Rotate the UVs by this many radians counter-clockwise around the origin.
+    // This is equivalent to a similar rotation of the image clockwise.
+    rotation :  float;
+    // The scale factor applied to the components of the UV coordinates.
+    scale    := float.[1., 1.];
+    // Overrides the textureInfo texCoord value if supplied,
+    // and if this extension is supported.
+    texcoord := -1;
+  };
 }
 
 // A set of parameter values that are used to define
@@ -1479,10 +1493,34 @@ parse_texture_info :: (value: JSON_Value, key: string) -> GLTF_Texture_Info, boo
   if has_texture {
     index    := get(texture, "index", .NUMBER);
     texcoord := get(texture, "texCoord", .NUMBER);
+    normal_scale, has_normal_scale := get(texture, "scale", .NUMBER);
+
     texture_info = GLTF_Texture_Info.{
-      index      = parse_int(index),
-      texcoord   = parse_int(texcoord),
+      index        = parse_int(index),
+      texcoord     = parse_int(texcoord),
+      normal_scale = ifx has_normal_scale then parse_float(normal_scale) else 1.,
     };
+
+    extensions, has_extension := get(texture, "extensions", .OBJECT);
+    if has_extension {
+      khr, has_khr:= get(extensions, "KHR_texture_transform", .OBJECT);
+      if has_khr {
+        texture_info.has_khr_texture_transform = true;
+
+        khr_offset := get_array(khr, "offset");
+        for val: khr_offset texture_info.khr_texture_transform.offset[it_index] = parse_float(val);
+
+        khr_scale := get_array(khr, "scale");
+        for val: khr_scale texture_info.khr_texture_transform.scale[it_index] = parse_float(val);
+
+        khr_rotation := get_float(khr, "rotation");
+        texture_info.khr_texture_transform.rotation = khr_rotation;
+
+        khr_texcoord, has_khr_texcoord := get_int(khr, "texCoord");
+        if has_khr_texcoord then texture_info.khr_texture_transform.texcoord = khr_texcoord;
+      }
+    }
+
   }
 
   return texture_info, has_texture;
