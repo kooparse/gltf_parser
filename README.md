@@ -1,6 +1,6 @@
 # glTF parser for Jai codebase
 
-Note: **Jai beta 0.1.080 is required.**
+Note: **Jai beta 0.1.087 is required.**
 
 This project is a glTF 2.0 parser written in Jai, aiming to replace the use of some C/C++ libraries. All glTF types are fully documented, so it comes nicely with IDE autocompletion, reducing
 back and forth with the [specification](https://www.khronos.org/registry/glTF/specs/2.0/glTF-2.0.html).

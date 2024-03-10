@@ -1370,7 +1370,7 @@ get_local_transform :: (using node: GLTF_Node) -> Matrix4 {
   }
 
   t := make_vector3(translation);
-  r := make_quaternion(rotation[0], rotation[1], rotation[2], rotation[3]);
+  r := Quaternion.{rotation[0], rotation[1], rotation[2], rotation[3]};
   s := make_vector3(scale);
 
   return make_translation_matrix4(t) * rotation_matrix(Matrix4, r) * make_scale_matrix4(s);
