@@ -259,8 +259,12 @@ gltf_parse_string :: (gltf_buffer: string) -> GLTF_Data {
       primitive: GLTF_Primitive;
       defer array_add(*mesh.primitives, primitive);
 
-      mode := get_int(prim_parsed, "mode");
-      primitive.mode = cast(GLTF_Mode) mode;
+      mode, ok := get_int(prim_parsed, "mode");
+      if !ok {
+        primitive.mode = .TRIANGLES;
+      } else {
+        primitive.mode = cast(GLTF_Mode) mode;
+      }
 
       primitive.material         = get_int(prim_parsed, "material", -1);
       primitive.indices_accessor = get_int(prim_parsed, "indices", -1);
