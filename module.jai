@@ -252,7 +252,7 @@ gltf_parse_string :: (gltf_buffer: string) -> GLTF_Data {
     mesh: GLTF_Mesh;
     defer array_add(*data.meshes, mesh);
 
-    name := get_string(mesh_parsed, "name");
+    mesh.name = get_string(mesh_parsed, "name");
 
     primitives := get_array(mesh_parsed, "primitives");
     for prim_parsed: primitives {
