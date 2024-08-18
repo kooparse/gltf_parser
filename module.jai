@@ -215,7 +215,7 @@ gltf_parse_string :: (gltf_buffer: string) -> GLTF_Data {
     scene: GLTF_Scene;
     defer array_add(*data.scenes, scene);
 
-    name := get_string(scene_parsed, "name");
+    scene.name = get_string(scene_parsed, "name");
 
     nodes := get_array(scene_parsed, "nodes");
     for nodes array_add(*scene.nodes, parse_int(it));
