@@ -1,6 +1,8 @@
+(This fork adds support for morph targets and extras, as well as keeping it up to date with new compiler releases. NOTE: morph targets dont support sparse accessors)
+
 # glTF parser for Jai codebase
 
-Note: **Jai beta 0.1.087 is required.**
+Note: **Jai beta 0.2.022 is required.**
 
 This project is a glTF 2.0 parser written in Jai, aiming to replace the use of some C/C++ libraries. All glTF types are fully documented, so it comes nicely with IDE autocompletion, reducing
 back and forth with the [specification](https://www.khronos.org/registry/glTF/specs/2.0/glTF-2.0.html).
@@ -82,8 +84,8 @@ nodes counts, etc...):
 - [x] Skins
 - [x] Cameras
 - [x] Parse `glb` files
-- [ ] Morth targets
-- [ ] Extras data
+- [x] Morth targets
+- [x] Extras data
 
 Also, we supports some glTF extensions:
 
